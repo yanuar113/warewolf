@@ -1,0 +1,10 @@
+services:
+  werewolf-app:
+    build: .
+    container_name: werewolf-companion
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
