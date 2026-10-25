@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut 
+  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep, RoleId } from './types/game';
 import { api } from './utils/api';
@@ -443,26 +443,38 @@ export default function App() {
                       onOpenFullModal={() => setIsHistoryOpen(true)}
                     />
 
-                    {/* Device perspective selector for offline pass-and-play */}
+                    {/* Locked Player Identity Bar - strictly locks player card perspective */}
                     <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-400">
                       <div className="flex items-center gap-1.5">
-                        <Smartphone className="w-4 h-4 text-slate-500" />
-                        <span>Tampilan Pemain:</span>
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Akun Pemain Terhubung:</span>
                       </div>
-                      <select
-                        value={currentPlayerId}
-                        onChange={(e) => {
-                          setCurrentPlayerId(e.target.value);
-                          localStorage.setItem('werewolf_player_id', e.target.value);
-                        }}
-                        className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none"
-                      >
-                        {room.players.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.status === 'eliminated' ? '(Tereliminasi)' : ''}
-                          </option>
-                        ))}
-                      </select>
+                      {isModerator ? (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={currentPlayerId}
+                            onChange={(e) => {
+                              setCurrentPlayerId(e.target.value);
+                              localStorage.setItem('werewolf_player_id', e.target.value);
+                            }}
+                            className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none font-medium"
+                          >
+                            {room.players.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.status === 'eliminated' ? '(Tereliminasi)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-[10px] font-semibold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800">
+                            Moderator
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-slate-100">
+                          <User className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{currentPlayer?.name}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
