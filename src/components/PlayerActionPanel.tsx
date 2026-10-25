@@ -57,6 +57,19 @@ export function PlayerActionPanel({
   const myWerewolfVote = room.nightActions.werewolfVotes[currentPlayer.id];
   const myLynchVote = room.dayVotes.votes[currentPlayer.id];
 
+  // Hitung akumulasi perolehan suara voting siang per target
+  const voteCounts: Record<string, number> = {};
+  let totalDayVotes = 0;
+  if (room.dayVotes?.votes) {
+    Object.entries(room.dayVotes.votes).forEach(([voterId, targetId]) => {
+      if (!targetId) return;
+      const voter = room.players.find(p => p.id === voterId);
+      const weight = voter?.role === 'mayor' ? 2 : 1;
+      voteCounts[targetId] = (voteCounts[targetId] || 0) + weight;
+      totalDayVotes += 1;
+    });
+  }
+
   // Derive Seer result if target is already recorded in room
   const inspectedPlayer = room.nightActions.seerTargetId
     ? room.players.find(p => p.id === room.nightActions.seerTargetId)
@@ -167,6 +180,63 @@ export function PlayerActionPanel({
 
   // 2. ELIMINATED PLAYER
   if (!isAlive) {
+    if (room.stage === 'DAY') {
+      return (
+        <div className="w-full max-w-sm mx-auto p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-lg space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <Sun className="w-4 h-4 text-amber-400" />
+              <h4 className="font-bold text-sm text-slate-100">Voting Siang (Penonton)</h4>
+            </div>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] bg-slate-950 border border-slate-800 text-amber-400 font-semibold">
+              {totalDayVotes} / {alivePlayers.length} Suara
+            </span>
+          </div>
+
+          <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-slate-400 text-center">
+            Anda telah gugur dan sedang mengamati perolehan suara voting musyawarah siang secara langsung.
+          </div>
+
+          <div className="space-y-2">
+            {alivePlayers.map(target => {
+              const targetVotes = voteCounts[target.id] || 0;
+              return (
+                <div
+                  key={target.id}
+                  className="w-full min-h-[44px] py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs flex items-center justify-between text-slate-300"
+                >
+                  <span className="font-medium">{target.name}</span>
+                  {targetVotes > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      <Users className="w-3 h-3" />
+                      <span>{targetVotes} Suara</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">0 Suara</span>
+                  )}
+                </div>
+              );
+            })}
+            {(() => {
+              const skipVotes = voteCounts['skip'] || 0;
+              if (skipVotes > 0) {
+                return (
+                  <div className="w-full min-h-[44px] py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs flex items-center justify-between text-slate-400">
+                    <span>Lewati Voting (Tidak Memilih)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold flex items-center gap-1 bg-slate-800 text-slate-300 border border-slate-700">
+                      <Users className="w-3 h-3" />
+                      <span>{skipVotes} Suara</span>
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="w-full max-w-sm mx-auto p-5 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-2">
         <Moon className="w-5 h-5 text-slate-500 mx-auto" />
@@ -633,7 +703,12 @@ export function PlayerActionPanel({
             <Sun className="w-4 h-4 text-amber-400" />
             <h4 className="font-bold text-sm text-slate-100">Voting Siang</h4>
           </div>
-          <span className="text-xs text-slate-400">Siang {room.cycle}</span>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Siang {room.cycle}</span>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] bg-slate-950 border border-slate-800 text-amber-400 font-semibold">
+              {totalDayVotes} / {alivePlayers.length} Suara
+            </span>
+          </div>
         </div>
 
         {/* Locked status banner */}
@@ -666,6 +741,8 @@ export function PlayerActionPanel({
           {alivePlayers.map(target => {
             const isSelected = myLynchVote === target.id;
             const isMe = target.id === currentPlayer.id;
+            const targetVotes = voteCounts[target.id] || 0;
+
             return (
               <button
                 key={target.id}
@@ -682,52 +759,96 @@ export function PlayerActionPanel({
                   });
                 }}
                 disabled={isLynchLocked || submitting}
-                className={`w-full min-h-[44px] py-2.5 px-3.5 text-left rounded-xl text-xs font-medium border transition-all flex items-center justify-between ${
+                className={`w-full min-h-[46px] py-2.5 px-3.5 text-left rounded-xl text-xs font-medium border transition-all flex items-center justify-between gap-2 ${
                   isSelected
                     ? 'bg-amber-500 border-amber-400 text-slate-950 font-bold'
                     : isLynchLocked
-                    ? 'bg-slate-950/60 border-slate-900 text-slate-500 cursor-not-allowed opacity-50'
+                    ? 'bg-slate-950/60 border-slate-900 text-slate-500 cursor-not-allowed opacity-60'
                     : 'bg-slate-950 hover:bg-slate-800 active:scale-[0.99] border-slate-800 text-slate-300'
                 }`}
               >
-                <span>{target.name} {isMe ? '(Diri Sendiri)' : ''}</span>
-                {isSelected ? (
-                  <div className="flex items-center gap-1 text-slate-950 text-[11px] font-bold">
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Terkunci</span>
-                  </div>
-                ) : (
-                  !isLynchLocked && <span className="text-[10px] text-slate-500">Pilih</span>
-                )}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{target.name} {isMe ? '(Diri Sendiri)' : ''}</span>
+                  {targetVotes > 0 && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold flex items-center gap-1 shrink-0 ${
+                        isSelected
+                          ? 'bg-slate-950 text-amber-300 border border-slate-900'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm'
+                      }`}
+                    >
+                      <Users className="w-3 h-3" />
+                      <span>{targetVotes} Suara</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isSelected ? (
+                    <div className="flex items-center gap-1 text-slate-950 text-[11px] font-bold">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Pilihan Anda</span>
+                    </div>
+                  ) : (
+                    !isLynchLocked && <span className="text-[10px] text-slate-500">Pilih</span>
+                  )}
+                </div>
               </button>
             );
           })}
 
-          <button
-            onClick={() => {
-              if (isLynchLocked) return;
-              setErrorMessage(null);
-              setPendingAction({
-                actionType: 'day_lynch',
-                targetId: 'skip',
-                targetName: 'Lewati Voting (Tidak Memilih)',
-                roleLabel: 'Warga',
-                actionDescription: 'Memilih untuk tidak mengeliminasi siapa pun pada musyawarah siang hari ini.',
-                colorScheme: 'amber',
-              });
-            }}
-            disabled={isLynchLocked || submitting}
-            className={`w-full min-h-[44px] py-2.5 px-3.5 text-center rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-2 ${
-              myLynchVote === 'skip'
-                ? 'bg-slate-800 border-slate-600 text-white font-semibold'
-                : isLynchLocked
-                ? 'bg-slate-950/60 border-slate-900 text-slate-600 cursor-not-allowed opacity-50'
-                : 'bg-slate-950 hover:bg-slate-800 active:scale-[0.99] border-slate-800 text-slate-400'
-            }`}
-          >
-            <span>Lewati Voting (Tidak Memilih)</span>
-            {myLynchVote === 'skip' && <Lock className="w-3.5 h-3.5 text-slate-300" />}
-          </button>
+          {/* Skip voting option */}
+          {(() => {
+            const skipVotes = voteCounts['skip'] || 0;
+            return (
+              <button
+                onClick={() => {
+                  if (isLynchLocked) return;
+                  setErrorMessage(null);
+                  setPendingAction({
+                    actionType: 'day_lynch',
+                    targetId: 'skip',
+                    targetName: 'Lewati Voting (Tidak Memilih)',
+                    roleLabel: 'Warga',
+                    actionDescription: 'Memilih untuk tidak mengeliminasi siapa pun pada musyawarah siang hari ini.',
+                    colorScheme: 'amber',
+                  });
+                }}
+                disabled={isLynchLocked || submitting}
+                className={`w-full min-h-[46px] py-2.5 px-3.5 text-center rounded-xl text-xs font-medium border transition-all flex items-center justify-between gap-2 ${
+                  myLynchVote === 'skip'
+                    ? 'bg-slate-800 border-slate-600 text-white font-semibold'
+                    : isLynchLocked
+                    ? 'bg-slate-950/60 border-slate-900 text-slate-600 cursor-not-allowed opacity-60'
+                    : 'bg-slate-950 hover:bg-slate-800 active:scale-[0.99] border-slate-800 text-slate-400'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span>Lewati Voting (Tidak Memilih)</span>
+                  {skipVotes > 0 && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold flex items-center gap-1 ${
+                        myLynchVote === 'skip'
+                          ? 'bg-slate-900 text-slate-200 border border-slate-700'
+                          : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      <Users className="w-3 h-3" />
+                      <span>{skipVotes} Suara</span>
+                    </span>
+                  )}
+                </div>
+                {myLynchVote === 'skip' ? (
+                  <div className="flex items-center gap-1 text-slate-200 text-[11px] font-semibold shrink-0">
+                    <Lock className="w-3.5 h-3.5 text-slate-300" />
+                    <span>Pilihan Anda</span>
+                  </div>
+                ) : (
+                  !isLynchLocked && <span className="text-[10px] text-slate-500 shrink-0">Pilih</span>
+                )}
+              </button>
+            );
+          })()}
         </div>
 
         {/* Modal */}

@@ -573,10 +573,12 @@ export function ModeratorDashboard({
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none min-h-[44px]"
                 >
                   <option value="">Gunakan Suara Terbanyak Otomatis</option>
-                  <option value="skip">Lewati (Tidak ada yang dieliminasi)</option>
+                  <option value="skip">
+                    Lewati (Tidak ada yang dieliminasi) {voteCounts['skip']?.count ? `(${voteCounts['skip'].count} suara)` : ''}
+                  </option>
                   {alivePlayers.map(p => (
                     <option key={p.id} value={p.id}>
-                      Eliminasi {p.name}
+                      Eliminasi {p.name} {voteCounts[p.id]?.count ? `(${voteCounts[p.id].count} suara)` : ''}
                     </option>
                   ))}
                 </select>

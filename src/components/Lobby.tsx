@@ -50,8 +50,8 @@ export function Lobby({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Undangan Room Werewolf',
-          text: `Yuk main Werewolf bersama! Masuk langsung ke Room #${room.code}:`,
+          title: 'Undangan Permainan Werewolf',
+          text: `Bergabunglah ke sesi permainan Werewolf pada Ruang #${room.code}:`,
           url: inviteUrl,
         });
         return;
@@ -105,14 +105,14 @@ export function Lobby({
       {/* Room Code Card */}
       <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Kode Room Permainan
+          <span className="text-xs font-semibold text-slate-400">
+            Kode Ruang Permainan
           </span>
-          <h2 className="text-4xl sm:text-6xl font-bold font-mono tracking-widest text-white mt-1">
+          <h2 className="text-4xl sm:text-6xl font-bold font-mono tracking-wider text-white mt-1">
             {room.code}
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mt-2">
-            Bagikan link undangan atau kode room ini kepada teman untuk langsung masuk ke lobby.
+            Bagikan tautan undangan atau kode ruang ini kepada rekan bermain untuk bergabung ke ruang tunggu.
           </p>
         </div>
 
@@ -326,7 +326,7 @@ export function Lobby({
               <button
                 onClick={handleStart}
                 disabled={!canStart || starting}
-                className={`w-full min-h-[50px] py-3.5 px-6 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 transition-all active:scale-[0.99] ${
+                className={`w-full min-h-[50px] py-3.5 px-6 rounded-xl font-semibold text-xs sm:text-sm tracking-normal flex items-center justify-center gap-2 transition-all active:scale-[0.99] ${
                   canStart
                     ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-md'
                     : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
@@ -335,7 +335,7 @@ export function Lobby({
                 <Play className="w-4 h-4 fill-current" />
                 <span>
                   {playerCount < 4
-                    ? `Menunggu Pemain (${playerCount}/4)`
+                    ? `Menunggu Pemain Bergabung (${playerCount}/4 minimal)`
                     : 'Mulai Permainan & Bagikan Peran'}
                 </span>
               </button>

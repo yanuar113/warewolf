@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown, Link, Trash2 
+  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown, Link, Trash2, Dices 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep, RoleId } from './types/game';
 import { api } from './utils/api';
+import { getRandomPlayerName } from './utils/names';
 import { TopBar } from './components/TopBar';
 import { Lobby } from './components/Lobby';
 import { PlayerCard } from './components/PlayerCard';
@@ -28,12 +29,7 @@ export default function App() {
 
   const [joinCode, setJoinCode] = useState('');
   const [invitedCode, setInvitedCode] = useState<string>('');
-  const [playerName, setPlayerName] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('werewolf_player_name') || '';
-    }
-    return '';
-  });
+  const [playerName, setPlayerName] = useState(() => getRandomPlayerName());
 
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isRoleDetailsOpen, setIsRoleDetailsOpen] = useState(false);
@@ -434,24 +430,27 @@ export default function App() {
         {/* 1. WELCOME SCREEN */}
         {!room ? (
           <div className="max-w-xl mx-auto w-full my-auto py-8 space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white uppercase">
+            <div className="text-center space-y-2">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
                 Werewolf Companion
               </h1>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-sm mx-auto font-normal">
+                Pendamping Permainan & Panduan Interaktif Moderator
+              </p>
             </div>
 
             {invitedCode ? (
               <div className="p-6 sm:p-8 bg-slate-900 border border-indigo-500/50 rounded-3xl shadow-2xl space-y-6 text-center animate-in fade-in">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-full text-xs font-semibold">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-full text-xs font-medium">
                   <Link className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Link Undangan Terdeteksi</span>
+                  <span>Undangan Sesi Permainan</span>
                 </div>
 
                 <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">
-                    Anda Diundang Bergabung ke Room
+                  <span className="text-xs font-medium text-slate-400 block">
+                    Anda diundang bergabung ke ruang permainan:
                   </span>
-                  <div className="text-4xl sm:text-5xl font-mono font-black text-amber-400 tracking-widest mt-1">
+                  <div className="text-3xl sm:text-4xl font-mono font-bold text-amber-400 tracking-wider mt-1">
                     #{invitedCode}
                   </div>
                 </div>
@@ -459,36 +458,40 @@ export default function App() {
                 <form onSubmit={handleJoinRoom} className="space-y-4 max-w-sm mx-auto text-left">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-slate-300">
-                        Masukkan Nama Anda:
+                      <label className="text-xs font-semibold text-slate-200">
+                        Nama Pemain
                       </label>
-                      <span className="text-[11px] font-medium text-amber-400">
-                        *Wajib Diisi
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPlayerName(getRandomPlayerName())}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-800/80 rounded-lg transition-colors cursor-pointer active:scale-95"
+                        title="Pilih nama acak lain"
+                      >
+                        <Dices className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Acak Nama</span>
+                      </button>
                     </div>
                     <input
                       type="text"
-                      placeholder="Masukkan nama Anda (wajib)..."
+                      placeholder="Masukkan nama pemain..."
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value)}
                       maxLength={25}
                       autoFocus
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-colors font-medium"
                     />
-                    {!playerName.trim() && (
-                      <p className="text-[11px] text-amber-400/90 mt-1.5">
-                        Isi nama Anda untuk bergabung ke room ini.
-                      </p>
-                    )}
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Nama terisi otomatis secara acak. Anda dapat menekan <strong>Acak Nama</strong> atau mengetik nama sendiri.
+                    </p>
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading || !playerName.trim()}
-                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-950 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-semibold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-950 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <LogIn className="w-4 h-4" />
-                    <span>Gabung Langsung ke Room</span>
+                    <span>Bergabung ke Ruang Permainan</span>
                   </button>
                 </form>
 
@@ -505,7 +508,7 @@ export default function App() {
                     }}
                     className="text-slate-400 hover:text-slate-200 transition-colors underline cursor-pointer"
                   >
-                    Gunakan kode lain atau buat room baru
+                    Gunakan kode lain atau buat ruang baru
                   </button>
                 </div>
               </div>
@@ -513,36 +516,40 @@ export default function App() {
               <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl space-y-6">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-300">
-                      Nama Anda:
+                    <label className="text-xs font-semibold text-slate-200">
+                      Nama Pemain
                     </label>
-                    <span className="text-[11px] font-medium text-amber-400">
-                      *Wajib Diisi
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPlayerName(getRandomPlayerName())}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-800/80 rounded-lg transition-colors cursor-pointer active:scale-95"
+                      title="Pilih nama acak lain"
+                    >
+                      <Dices className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Acak Nama</span>
+                    </button>
                   </div>
                   <input
                     type="text"
-                    placeholder="Masukkan nama Anda (wajib)..."
+                    placeholder="Masukkan nama pemain..."
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
                     maxLength={25}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-500 transition-colors font-medium"
                   />
-                  {!playerName.trim() && (
-                    <p className="text-[11px] text-amber-400/90 mt-1.5">
-                      Pemain wajib mengisi nama sebelum membuat atau bergabung ke room.
-                    </p>
-                  )}
+                  <p className="text-[11px] text-slate-400 mt-1.5">
+                    Nama terisi otomatis secara acak. Anda dapat menekan <strong>Acak Nama</strong> atau mengetik nama sendiri.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
                     <div>
-                      <strong className="text-sm text-slate-200 flex items-center gap-1.5">
-                        <PlusCircle className="w-4 h-4 text-slate-400" /> Buat Room Baru
+                      <strong className="text-sm text-slate-200 flex items-center gap-1.5 font-semibold">
+                        <PlusCircle className="w-4 h-4 text-amber-400" /> Buat Ruang Baru
                       </strong>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Sebagai Host atau Moderator. Buat kode room baru untuk dibagikan.
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        Sebagai Host atau Moderator. Sistem akan membuat kode unik untuk dibagikan ke pemain.
                       </p>
                     </div>
                     <button
@@ -550,18 +557,18 @@ export default function App() {
                       disabled={loading || !playerName.trim()}
                       className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <span>Buat Room</span>
+                      <span>Buat Ruang</span>
                     </button>
                   </div>
 
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
                     <div>
-                      <strong className="text-sm text-slate-200 flex items-center gap-1.5">
-                        <LogIn className="w-4 h-4 text-slate-400" /> Gabung Room
+                      <strong className="text-sm text-slate-200 flex items-center gap-1.5 font-semibold">
+                        <LogIn className="w-4 h-4 text-slate-400" /> Gabung Ruang
                       </strong>
                       <input
                         type="text"
-                        placeholder="KODE ROOM"
+                        placeholder="KODE RUANG"
                         value={joinCode}
                         onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                         maxLength={5}
@@ -573,7 +580,7 @@ export default function App() {
                       disabled={loading || !joinCode.trim() || !playerName.trim()}
                       className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
-                      <span>Masuk ke Room</span>
+                      <span>Masuk ke Ruang</span>
                     </button>
                   </div>
                 </div>
@@ -582,10 +589,10 @@ export default function App() {
                   <button
                     onClick={handleQuickDemoRoom}
                     disabled={loading}
-                    className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                    className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Mode Demo (Langsung Buat 6 Pemain untuk Pengujian)</span>
+                    <span>Mode Simulasi (Buat Ruang Uji Coba dengan 6 Pemain)</span>
                   </button>
                 </div>
               </div>

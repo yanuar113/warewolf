@@ -22,6 +22,9 @@ export function RoleRevealModal({
   const winner = room.winner;
   const isVillageWin = winner === 'village';
 
+  // Eksklusifkan moderator dari pengungkapan peran, hanya tampilkan pemain yang bermain
+  const playingPlayers = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 md:p-8 text-slate-100 space-y-6">
@@ -72,11 +75,11 @@ export function RoleRevealModal({
         {/* Roster of all players */}
         <div className="space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Peran Seluruh Pemain ({room.players.length})
+            Peran Seluruh Pemain ({playingPlayers.length})
           </h4>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {room.players.map(player => {
+            {playingPlayers.map(player => {
               const roleDef = player.role ? ROLE_DEFINITIONS[player.role] : null;
               const isWolf = roleDef?.team === 'werewolf';
               const isAlive = player.status === 'alive';

@@ -50,8 +50,8 @@ export function TopBar({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Undangan Room Werewolf',
-          text: `Yuk main Werewolf bersama! Masuk langsung ke Room #${roomCode}:`,
+          title: 'Undangan Permainan Werewolf',
+          text: `Bergabunglah ke sesi permainan Werewolf pada Ruang #${roomCode}:`,
           url: url,
         });
         return;
@@ -69,14 +69,14 @@ export function TopBar({
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
         {/* Left: Brand & Room Code Pill */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <span className="text-sm sm:text-base md:text-lg font-bold tracking-wider text-slate-100 uppercase whitespace-nowrap shrink-0">
-            Werewolf
+          <span className="text-sm sm:text-base font-bold tracking-tight text-slate-100 whitespace-nowrap shrink-0">
+            Werewolf Companion
           </span>
           {roomCode && (
             <div className="flex items-center shrink-0">
               <button
                 onClick={copyRoomCode}
-                title="Salin Kode Room"
+                title="Salin Kode Ruang"
                 className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-mono font-medium bg-slate-900 border border-slate-700 rounded-l text-slate-300 hover:text-white hover:border-slate-500 active:scale-95 transition-all min-h-[32px] shrink-0"
               >
                 <span>#{roomCode}</span>
@@ -84,11 +84,11 @@ export function TopBar({
               </button>
               <button
                 onClick={shareInviteLink}
-                title="Bagikan / Salin Link Undangan Langsung"
+                title="Bagikan Tautan Undangan"
                 className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium bg-indigo-950/90 hover:bg-indigo-900 border border-l-0 border-indigo-700 text-indigo-300 hover:text-white rounded-r active:scale-95 transition-all min-h-[32px] shrink-0 shadow-sm"
               >
                 {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{copiedLink ? 'Link Tersalin' : 'Undang'}</span>
+                <span className="hidden sm:inline">{copiedLink ? 'Tautan Tersalin' : 'Undang'}</span>
               </button>
             </div>
           )}
@@ -160,11 +160,11 @@ export function TopBar({
           {roomCode && onExitRoom && (
             <button
               onClick={onExitRoom}
-              title="Keluar dari Room Saat Ini"
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] text-xs font-semibold bg-rose-950/90 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-800/90 rounded-lg active:scale-95 transition-all shadow-md shrink-0"
+              title="Keluar dari Ruang Permainan"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] text-xs font-semibold bg-rose-950/90 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-800/90 rounded-lg active:scale-95 transition-all shadow-md shrink-0 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Keluar Room</span>
+              <span className="hidden sm:inline">Keluar Ruang</span>
               <span className="sm:hidden">Keluar</span>
             </button>
           )}
