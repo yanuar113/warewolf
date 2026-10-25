@@ -37,6 +37,15 @@ export function PlayerActionPanel({
     isWerewolf: boolean;
   } | null>(null);
 
+  if (currentPlayer.isModerator) {
+    return (
+      <div className="w-full max-w-sm mx-auto p-4 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-2 text-xs text-slate-400">
+        <p className="font-semibold text-slate-300">Aksi & Voting Khusus Pemain</p>
+        <p>Sebagai Moderator, Anda tidak memiliki aksi malam atau voting di dalam game. Silakan buka <strong>Panel Moderator</strong> untuk memandu alur permainan.</p>
+      </div>
+    );
+  }
+
   const isAlive = currentPlayer.status === 'alive';
   const alivePlayers = room.players.filter(p => p.status === 'alive');
   const targetablePlayers = alivePlayers.filter(p => p.id !== currentPlayer.id);

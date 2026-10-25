@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Shield, Skull, Heart } from 'lucide-react';
+import { Eye, EyeOff, Shield, Skull, Heart, Crown } from 'lucide-react';
 import { Player } from '../types/game';
 import { ROLE_DEFINITIONS } from '../utils/roles';
 import { sounds } from '../utils/audio';
@@ -17,6 +17,28 @@ export function PlayerCard({ player }: Props) {
     sounds.playCardFlip();
     setIsRevealed(!isRevealed);
   };
+
+  if (player.isModerator) {
+    return (
+      <div className="w-full max-w-sm mx-auto p-6 bg-slate-900 border border-indigo-800/80 rounded-3xl shadow-xl text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-indigo-950 border border-indigo-700 flex items-center justify-center mx-auto text-amber-400 shadow-md">
+          <Crown className="w-8 h-8" />
+        </div>
+        <div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300 bg-indigo-950 px-2.5 py-1 rounded-md border border-indigo-800 inline-block mb-2">
+            Peran: Moderator (Pemandu)
+          </span>
+          <h3 className="text-xl font-bold text-white">Anda Adalah Moderator</h3>
+          <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+            Sebagai Moderator, Anda bertugas memandu alur malam, diskusi, dan voting. Anda <strong>tidak berpartisipasi sebagai pemain</strong> dan <strong>tidak mendapatkan kartu peran</strong>.
+          </p>
+        </div>
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
+          Buka tab <strong>Panel Moderator</strong> di atas untuk memandu fase permainan secara real-time.
+        </div>
+      </div>
+    );
+  }
 
   if (!roleDef) {
     return (

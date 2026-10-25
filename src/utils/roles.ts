@@ -149,6 +149,7 @@ export function distributeRolesToPlayers(
   players: { id: string; isModerator: boolean }[],
   roleConfig: Record<RoleId, number>
 ): Record<string, RoleId> {
+  const activePlayers = players.filter(p => !p.isModerator);
   const rolePool: RoleId[] = [];
 
   Object.entries(roleConfig).forEach(([roleId, count]) => {
@@ -157,11 +158,11 @@ export function distributeRolesToPlayers(
     }
   });
 
-  while (rolePool.length < players.length) {
+  while (rolePool.length < activePlayers.length) {
     rolePool.push('villager');
   }
 
-  while (rolePool.length > players.length) {
+  while (rolePool.length > activePlayers.length) {
     const villagerIdx = rolePool.lastIndexOf('villager');
     if (villagerIdx >= 0) {
       rolePool.splice(villagerIdx, 1);
@@ -173,7 +174,7 @@ export function distributeRolesToPlayers(
   const shuffledRoles = shuffleArray(rolePool);
   const assignments: Record<string, RoleId> = {};
 
-  players.forEach((player, idx) => {
+  activePlayers.forEach((player, idx) => {
     assignments[player.id] = shuffledRoles[idx] || 'villager';
   });
 

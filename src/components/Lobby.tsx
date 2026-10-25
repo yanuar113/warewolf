@@ -32,8 +32,11 @@ export function Lobby({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const playingPlayers = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId);
+  const playerCount = playingPlayers.length;
+
   const handleApplyRecommended = async () => {
-    const recommended = getRecommendedRoleConfig(room.players.length);
+    const recommended = getRecommendedRoleConfig(playerCount);
     await onUpdateRoleConfig(recommended);
   };
 
@@ -46,7 +49,6 @@ export function Lobby({
   };
 
   const totalCardsConfigured = Object.values(room.roleConfig).reduce((a, b) => a + b, 0);
-  const playerCount = room.players.length;
   const isMatch = totalCardsConfigured === playerCount;
   const canStart = playerCount >= 4;
 

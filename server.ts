@@ -39,11 +39,11 @@ function generateRoomCode(): string {
 }
 
 function checkWinCondition(room: GameRoom): 'werewolf' | 'village' | null {
-  const alivePlayers = room.players.filter(p => p.status === 'alive');
-  const aliveWerewolves = alivePlayers.filter(p => p.role === 'werewolf').length;
-  const aliveVillagers = alivePlayers.filter(p => p.role !== 'werewolf').length;
+  const playingAlive = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId && p.status === 'alive');
+  const aliveWerewolves = playingAlive.filter(p => p.role === 'werewolf').length;
+  const aliveVillagers = playingAlive.filter(p => p.role !== 'werewolf').length;
 
-  if (aliveWerewolves === 0 && alivePlayers.length > 0) {
+  if (aliveWerewolves === 0 && playingAlive.length > 0) {
     return 'village';
   }
   if (aliveWerewolves >= aliveVillagers && aliveWerewolves > 0) {
@@ -334,14 +334,20 @@ app.post('/api/rooms/:code/start-game', (req, res) => {
     return res.status(403).json({ error: 'Akses ditolak. Hanya Moderator yang dapat memulai permainan.' });
   }
 
-  if (room.players.length < 4) {
-    return res.status(400).json({ error: 'Minimal 4 pemain untuk memulai permainan.' });
+  const playingPlayers = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId);
+  if (playingPlayers.length < 4) {
+    return res.status(400).json({ error: 'Minimal 4 pemain (di luar Moderator) untuk memulai permainan.' });
   }
 
-  const assignments = distributeRolesToPlayers(room.players, room.roleConfig);
+  const assignments = distributeRolesToPlayers(playingPlayers, room.roleConfig);
   room.players.forEach(p => {
-    p.role = assignments[p.id];
-    p.status = 'alive';
+    if (p.isModerator || p.id === room.moderatorId) {
+      p.role = undefined;
+      p.status = 'alive';
+    } else {
+      p.role = assignments[p.id];
+      p.status = 'alive';
+    }
     p.eliminatedInPhase = undefined;
     p.eliminatedReason = undefined;
   });
