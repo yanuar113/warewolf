@@ -8,3 +8,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+    volumes:
+      - werewolf-uploads:/app/uploads
+
+volumes:
+  werewolf-uploads:
+    driver: local

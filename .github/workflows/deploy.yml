@@ -1,0 +1,35 @@
+name: Continuous Deployment (VPS aaPanel)
+
+on:
+  push:
+    branches:
+      - main
+
+# Mencegah eksekusi deployment ganda secara bersamaan
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Otomatis ke VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Kode
+        uses: actions/checkout@v4
+
+      - name: Eksekusi Script Deploy di VPS via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop_on_error: true
+          script: |
+            export TARGET_DIR="${{ secrets.TARGET_DIR || '/www/wwwroot/warewolf' }}"
+            echo "[GITHUB ACTIONS] Memulai deployment di VPS pada direktori $TARGET_DIR..."
+            cd "$TARGET_DIR"
+            chmod +x deploy.sh
+            ./deploy.sh

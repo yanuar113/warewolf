@@ -1,4 +1,4 @@
-import { Crown, BookOpen, History, Shield } from 'lucide-react';
+import { Crown, BookOpen, History, Shield, LogOut } from 'lucide-react';
 
 interface Props {
   activeTab: 'player' | 'moderator';
@@ -8,6 +8,7 @@ interface Props {
   historyCount?: number;
   isModerator: boolean;
   isInRoom: boolean;
+  onExitRoom?: () => void;
 }
 
 export function MobileBottomNav({
@@ -18,12 +19,13 @@ export function MobileBottomNav({
   historyCount = 0,
   isModerator,
   isInRoom,
+  onExitRoom,
 }: Props) {
   if (!isInRoom) return null;
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 md:hidden safe-area-pb">
-      <div className="grid grid-cols-4 h-15 max-w-md mx-auto items-center px-1">
+      <div className="grid grid-cols-5 h-15 max-w-md mx-auto items-center px-1">
         {/* Tab 1: Kartu Peran */}
         <button
           onClick={() => onTabChange('player')}
@@ -76,6 +78,15 @@ export function MobileBottomNav({
         >
           <BookOpen className="w-5 h-5" />
           <span className="text-[10px] tracking-tight">Aturan</span>
+        </button>
+
+        {/* Tab 5: Keluar Room */}
+        <button
+          onClick={onExitRoom}
+          className="min-h-[48px] flex flex-col items-center justify-center gap-1 text-rose-400 hover:text-rose-300 active:scale-95 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="text-[10px] font-semibold tracking-tight">Keluar</span>
         </button>
       </div>
     </nav>

@@ -8,10 +8,13 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Copy project source code
+# Copy project source code (includes public/, src/assets/, images)
 COPY . .
 
-# Build frontend production bundle
+# Ensure persistent upload & public asset directories exist
+RUN mkdir -p uploads public/assets/images
+
+# Build frontend production bundle (Vite outputs to dist/)
 RUN npm run build
 
 # Set environment

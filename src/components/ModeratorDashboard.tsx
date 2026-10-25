@@ -10,6 +10,7 @@ import { CompactHistoryTimeline } from './CompactHistoryTimeline';
 
 interface Props {
   room: GameRoom;
+  currentPlayerId?: string;
   onNightStep: (step: NightStep) => Promise<void>;
   onResolveNight: () => Promise<void>;
   onDayStep: (step: DayStep) => Promise<void>;
@@ -24,6 +25,7 @@ interface Props {
 
 export function ModeratorDashboard({
   room,
+  currentPlayerId,
   onNightStep,
   onResolveNight,
   onDayStep,
@@ -37,6 +39,23 @@ export function ModeratorDashboard({
 }: Props) {
   const [selectedLynchTarget, setSelectedLynchTarget] = useState<string>('');
   const [showRoleCheatSheet, setShowRoleCheatSheet] = useState(true);
+
+  if (currentPlayerId && room.moderatorId !== currentPlayerId) {
+    return (
+      <div className="max-w-xl mx-auto my-12 p-8 bg-slate-900 border border-rose-900/60 rounded-3xl text-center space-y-4 shadow-2xl">
+        <div className="w-16 h-16 rounded-2xl bg-rose-950 border border-rose-800 text-rose-400 flex items-center justify-center mx-auto shadow-inner">
+          <Shield className="w-8 h-8" />
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs font-mono uppercase tracking-widest text-rose-400 font-bold">Error 403 Forbidden</span>
+          <h3 className="text-xl font-bold text-white">Akses Panel Moderator Ditolak</h3>
+        </div>
+        <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+          Anda tidak memiliki hak akses sebagai Moderator untuk room ini. Hanya Moderator ({room.players.find(p => p.id === room.moderatorId)?.name || 'terpilih'}) yang dapat mengakses dashboard panduan ini.
+        </p>
+      </div>
+    );
+  }
 
   // Timer local tick
   useEffect(() => {

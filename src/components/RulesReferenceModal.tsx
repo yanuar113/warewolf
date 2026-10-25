@@ -1,11 +1,12 @@
-import { X, Shield, Moon, Sun, Info } from 'lucide-react';
+import { X, Shield, Moon, Sun, Info, Award, ChevronRight } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onOpenRoleDetails?: () => void;
 }
 
-export function RulesReferenceModal({ isOpen, onClose }: Props) {
+export function RulesReferenceModal({ isOpen, onClose, onOpenRoleDetails }: Props) {
   if (!isOpen) return null;
 
   return (
@@ -25,6 +26,32 @@ export function RulesReferenceModal({ isOpen, onClose }: Props) {
         </div>
 
         <div className="mt-5 space-y-5 text-sm leading-relaxed">
+          {/* Prominent Link to Role Details Modal */}
+          {onOpenRoleDetails && (
+            <div className="p-4 bg-gradient-to-r from-amber-950/40 via-slate-900 to-indigo-950/40 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+              <div className="space-y-0.5 text-center sm:text-left">
+                <div className="text-xs font-bold text-amber-300 flex items-center justify-center sm:justify-start gap-1.5">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>Panduan Detail Peran & Kemampuan Unik</span>
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  Pelajari deskripsi lengkap, kondisi kemenangan, dan kemampuan unik setiap karakter.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenRoleDetails();
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shrink-0"
+              >
+                <span>Buka Panduan Peran</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           <section className="space-y-1.5">
             <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
               <Moon className="w-4 h-4 text-indigo-400" /> Tujuan Permainan
@@ -93,7 +120,20 @@ export function RulesReferenceModal({ isOpen, onClose }: Props) {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
+        <div className="mt-6 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          {onOpenRoleDetails ? (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenRoleDetails();
+              }}
+              className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-xs font-semibold bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-300 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Award className="w-4 h-4 text-amber-400" />
+              <span>Panduan Detail Peran</span>
+            </button>
+          ) : <div />}
+
           <button
             onClick={onClose}
             className="w-full sm:w-auto px-5 py-2.5 min-h-[44px] text-xs font-semibold bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-xl transition-colors flex items-center justify-center"

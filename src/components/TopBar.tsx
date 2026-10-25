@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Volume2, VolumeX, BookOpen, Crown, UserCheck, Copy, Check, History } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Crown, Copy, Check, History, LogOut } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   onOpenHistory?: () => void;
   historyCount?: number;
   onClaimModerator?: () => void;
+  onExitRoom?: () => void;
   stage?: string;
 }
 
@@ -23,6 +24,7 @@ export function TopBar({
   onOpenHistory,
   historyCount = 0,
   onClaimModerator,
+  onExitRoom,
   stage,
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -123,13 +125,15 @@ export function TopBar({
             {audioEnabled ? <Volume2 className="w-4 h-4 text-slate-300" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
           </button>
 
-          {!isModerator && onClaimModerator && stage !== 'GAME_OVER' && (
+          {roomCode && onExitRoom && (
             <button
-              onClick={onClaimModerator}
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-900 border border-slate-700 rounded-lg hover:bg-slate-800 hover:text-white transition-colors whitespace-nowrap shrink-0"
+              onClick={onExitRoom}
+              title="Keluar dari Room Saat Ini"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] text-xs font-semibold bg-rose-950/90 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-800/90 rounded-lg active:scale-95 transition-all shadow-md shrink-0"
             >
-              <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Ganti ke Moderator</span>
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">Keluar Room</span>
+              <span className="sm:hidden">Keluar</span>
             </button>
           )}
         </div>

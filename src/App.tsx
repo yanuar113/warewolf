@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone 
+  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep, RoleId } from './types/game';
 import { api } from './utils/api';
@@ -11,6 +11,7 @@ import { PlayerActionPanel } from './components/PlayerActionPanel';
 import { ModeratorDashboard } from './components/ModeratorDashboard';
 import { RoleRevealModal } from './components/RoleRevealModal';
 import { RulesReferenceModal } from './components/RulesReferenceModal';
+import { RoleDetailsModal } from './components/RoleDetailsModal';
 import { GameHistoryModal } from './components/GameHistoryModal';
 import { CompactHistoryTimeline } from './components/CompactHistoryTimeline';
 import { MobileBottomNav } from './components/MobileBottomNav';
@@ -28,8 +29,10 @@ export default function App() {
   const [playerName, setPlayerName] = useState('');
 
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [isRoleDetailsOpen, setIsRoleDetailsOpen] = useState(false);
   const [isRoleRevealOpen, setIsRoleRevealOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
 
   // Phase transition state for dramatic dawn animation
   const [showPhaseTransition, setShowPhaseTransition] = useState(false);
@@ -306,6 +309,7 @@ export default function App() {
         onOpenHistory={() => setIsHistoryOpen(true)}
         historyCount={room?.deathHistory?.length || 0}
         onClaimModerator={handleClaimModerator}
+        onExitRoom={() => setIsExitConfirmOpen(true)}
         stage={room?.stage}
       />
 
@@ -464,6 +468,7 @@ export default function App() {
                 ) : (
                   <ModeratorDashboard
                     room={room}
+                    currentPlayerId={currentPlayerId}
                     onNightStep={handleNightStep}
                     onResolveNight={handleResolveNight}
                     onDayStep={handleDayStep}
@@ -508,10 +513,11 @@ export default function App() {
                 </button>
                 <span aria-hidden="true">·</span>
                 <button
-                  onClick={handleExitRoom}
-                  className="hover:text-rose-400 transition-colors"
+                  onClick={() => setIsExitConfirmOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-950/90 hover:bg-rose-900 border border-rose-800 text-rose-300 hover:text-white rounded-lg font-semibold transition-all shadow-sm active:scale-95"
                 >
-                  Keluar
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Keluar Room</span>
                 </button>
               </div>
             </footer>
@@ -522,6 +528,12 @@ export default function App() {
       <RulesReferenceModal
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
+        onOpenRoleDetails={() => setIsRoleDetailsOpen(true)}
+      />
+
+      <RoleDetailsModal
+        isOpen={isRoleDetailsOpen}
+        onClose={() => setIsRoleDetailsOpen(false)}
       />
 
       <GameHistoryModal
@@ -539,6 +551,40 @@ export default function App() {
           onResetGame={handleResetGame}
           isModerator={isModerator}
         />
+      )}
+
+      {/* Exit Room Confirmation Modal */}
+      {isExitConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-950/80 border border-rose-800 flex items-center justify-center mx-auto text-rose-400">
+              <LogOut className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Keluar dari Room?</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Anda akan keluar dari room <strong className="text-slate-200">#{room?.code}</strong>. Sesi permainan Anda pada room ini akan diakhiri di perangkat ini.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setIsExitConfirmOpen(false)}
+                className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  setIsExitConfirmOpen(false);
+                  handleExitRoom();
+                }}
+                className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-md transition-colors"
+              >
+                Ya, Keluar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Dramatic Phase Transition Overlay: Night to Day */}
@@ -559,6 +605,7 @@ export default function App() {
         historyCount={room?.deathHistory?.length || 0}
         isModerator={isModerator}
         isInRoom={!!room}
+        onExitRoom={() => setIsExitConfirmOpen(true)}
       />
     </div>
   );

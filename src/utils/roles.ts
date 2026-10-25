@@ -1,13 +1,13 @@
 import { RoleDefinition, RoleId } from '../types/game';
 
 export const ROLE_CARD_IMAGES: Record<RoleId, string> = {
-  werewolf: '/src/assets/images/werewolf_role_card_1792836261554.jpg',
-  seer: '/src/assets/images/seer_role_card_1792836260638.jpg',
-  doctor: '/src/assets/images/doctor_role_card_1792836262383.jpg',
-  villager: '/src/assets/images/villager_role_card_1792836262327.jpg',
-  hunter: '/src/assets/images/villager_role_card_1792836262327.jpg',
-  witch: '/src/assets/images/seer_role_card_1792836260638.jpg',
-  mayor: '/src/assets/images/villager_role_card_1792836262327.jpg',
+  werewolf: '/assets/images/werewolf_role_card_1792836261554.jpg',
+  seer: '/assets/images/seer_role_card_1792836260638.jpg',
+  doctor: '/assets/images/doctor_role_card_1792836262383.jpg',
+  villager: '/assets/images/villager_role_card_1792836262327.jpg',
+  hunter: '/assets/images/villager_role_card_1792836262327.jpg',
+  witch: '/assets/images/seer_role_card_1792836260638.jpg',
+  mayor: '/assets/images/villager_role_card_1792836262327.jpg',
 };
 
 export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {

@@ -65,6 +65,9 @@ export function Lobby({
     }
   };
 
+  const isHost = currentPlayerId === room.hostId;
+  const isModerator = currentPlayerId === room.moderatorId;
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
       {/* Room Code Card */}
@@ -137,14 +140,14 @@ export function Lobby({
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
                         Moderator
                       </span>
-                    ) : (
+                    ) : isHost ? (
                       <button
                         onClick={() => onSetModerator(p.id)}
-                        className="text-[11px] text-slate-400 hover:text-slate-200"
+                        className="text-[11px] text-slate-400 hover:text-slate-200 px-2 py-1 bg-slate-900 border border-slate-800 rounded hover:border-slate-700 transition-colors"
                       >
-                        Jadikan Moderator
+                        Pilih Moderator
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               );
@@ -154,7 +157,9 @@ export function Lobby({
           <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400 flex items-start gap-2">
             <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
             <span>
-              Moderator memandu alur babak dan memverifikasi hasil voting secara real-time.
+              {isHost
+                ? 'Sebagai pembuat room (Host), Anda berhak memilih siapa yang menjadi Moderator.'
+                : 'Moderator memandu alur permainan dan memverifikasi hasil aksi secara real-time.'}
             </span>
           </div>
         </div>
@@ -171,13 +176,19 @@ export function Lobby({
               </div>
             </div>
 
-            <button
-              onClick={handleApplyRecommended}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors self-start sm:self-auto"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Gunakan Rekomendasi Standar</span>
-            </button>
+            {isModerator ? (
+              <button
+                onClick={handleApplyRecommended}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors self-start sm:self-auto"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Gunakan Rekomendasi Standar</span>
+              </button>
+            ) : (
+              <span className="text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">
+                Diatur oleh Moderator
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -203,22 +214,30 @@ export function Lobby({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => handleRoleCountChange(roleId, -1)}
-                      disabled={count === 0}
-                      className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 disabled:opacity-30 text-slate-200 flex items-center justify-center text-xs transition-all"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-6 text-center font-mono font-bold text-sm text-slate-200">
-                      {count}
-                    </span>
-                    <button
-                      onClick={() => handleRoleCountChange(roleId, 1)}
-                      className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-slate-200 flex items-center justify-center text-xs transition-all"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    {isModerator ? (
+                      <>
+                        <button
+                          onClick={() => handleRoleCountChange(roleId, -1)}
+                          disabled={count === 0}
+                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 disabled:opacity-30 text-slate-200 flex items-center justify-center text-xs transition-all"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-6 text-center font-mono font-bold text-sm text-slate-200">
+                          {count}
+                        </span>
+                        <button
+                          onClick={() => handleRoleCountChange(roleId, 1)}
+                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-slate-200 flex items-center justify-center text-xs transition-all"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="px-3 py-1 font-mono font-bold text-sm text-slate-300 bg-slate-900 rounded-lg border border-slate-800">
+                        {count}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -226,22 +245,30 @@ export function Lobby({
           </div>
 
           <div className="pt-2">
-            <button
-              onClick={handleStart}
-              disabled={!canStart || starting}
-              className={`w-full min-h-[50px] py-3.5 px-6 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 transition-all active:scale-[0.99] ${
-                canStart
-                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-md'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-              }`}
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>
+            {isModerator ? (
+              <button
+                onClick={handleStart}
+                disabled={!canStart || starting}
+                className={`w-full min-h-[50px] py-3.5 px-6 rounded-xl font-bold text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 transition-all active:scale-[0.99] ${
+                  canStart
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-md'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                }`}
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>
+                  {playerCount < 4
+                    ? `Menunggu Pemain (${playerCount}/4)`
+                    : 'Mulai Permainan & Bagikan Peran'}
+                </span>
+              </button>
+            ) : (
+              <div className="w-full py-3.5 px-6 bg-slate-950 border border-slate-800 rounded-xl text-center text-xs text-slate-400 font-medium">
                 {playerCount < 4
-                  ? `Menunggu Pemain (${playerCount}/4)`
-                  : 'Mulai Permainan & Bagikan Peran'}
-              </span>
-            </button>
+                  ? `Menunggu pemain bergabung (${playerCount}/4 minimal)...`
+                  : 'Menunggu Moderator memulai permainan...'}
+              </div>
+            )}
           </div>
         </div>
       </div>
