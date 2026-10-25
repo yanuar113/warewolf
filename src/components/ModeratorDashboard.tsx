@@ -21,6 +21,7 @@ interface Props {
   onOpenHistory?: () => void;
   onResetGame: () => Promise<void>;
   onTriggerDawnTransition?: () => void;
+  onTriggerNightTransition?: () => void;
 }
 
 export function ModeratorDashboard({
@@ -36,6 +37,7 @@ export function ModeratorDashboard({
   onOpenHistory,
   onResetGame,
   onTriggerDawnTransition,
+  onTriggerNightTransition,
 }: Props) {
   const [selectedLynchTarget, setSelectedLynchTarget] = useState<string>('');
   const [showRoleCheatSheet, setShowRoleCheatSheet] = useState(true);
@@ -180,7 +182,18 @@ export function ModeratorDashboard({
                 Panduan Fase Malam (Babak {room.cycle})
               </h3>
             </div>
-            <span className="text-xs text-slate-500">Langkah: {room.nightStep}</span>
+            <div className="flex items-center gap-2">
+              {onTriggerNightTransition && (
+                <button
+                  onClick={onTriggerNightTransition}
+                  className="px-2.5 py-1 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800 text-indigo-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Efek Transisi Malam</span>
+                </button>
+              )}
+              <span className="text-xs text-slate-500">Langkah: {room.nightStep}</span>
+            </div>
           </div>
 
           {/* Step 1: Night Start */}

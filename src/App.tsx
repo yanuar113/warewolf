@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User 
+  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep, RoleId } from './types/game';
 import { api } from './utils/api';
@@ -16,6 +16,7 @@ import { GameHistoryModal } from './components/GameHistoryModal';
 import { CompactHistoryTimeline } from './components/CompactHistoryTimeline';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { PhaseTransitionOverlay } from './components/PhaseTransitionOverlay';
+import { NightTransitionOverlay } from './components/NightTransitionOverlay';
 import { sounds } from './utils/audio';
 
 export default function App() {
@@ -34,8 +35,9 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
 
-  // Phase transition state for dramatic dawn animation
+  // Phase transition states for dramatic dawn & nightfall animations
   const [showPhaseTransition, setShowPhaseTransition] = useState(false);
+  const [showNightTransition, setShowNightTransition] = useState(false);
   const [transitionInfo, setTransitionInfo] = useState<{
     cycle: number;
     lastNightSaved?: boolean;
@@ -103,13 +105,15 @@ export default function App() {
     };
   }, [room?.code, fetchLatestRoom]);
 
-  // Detect stage change from NIGHT or HUNTER_REVENGE to DAY
+  // Detect stage change for Nightfall and Dawn transitions
   useEffect(() => {
     if (!room) return;
     const prev = prevStageRef.current;
     const current = room.stage;
 
-    if ((prev === 'NIGHT' || prev === 'HUNTER_REVENGE') && current === 'DAY') {
+    if ((prev === 'LOBBY' || prev === 'DAY') && current === 'NIGHT') {
+      setShowNightTransition(true);
+    } else if ((prev === 'NIGHT' || prev === 'HUNTER_REVENGE') && current === 'DAY') {
       const killedPlayer = room.lastNightKilledId
         ? room.players.find(p => p.id === room.lastNightKilledId)
         : undefined;
@@ -139,8 +143,11 @@ export default function App() {
     setShowPhaseTransition(true);
   };
 
+  const savedPlayerId = typeof window !== 'undefined' ? localStorage.getItem('werewolf_player_id') : null;
+  const myPlayerId = savedPlayerId || currentPlayerId;
+  const myPlayer = room?.players.find(p => p.id === myPlayerId);
   const currentPlayer = room?.players.find(p => p.id === currentPlayerId) || room?.players[0];
-  const isModerator = currentPlayer?.id === room?.moderatorId;
+  const isModerator = !!(room?.moderatorId && (myPlayerId === room.moderatorId || currentPlayer?.id === room.moderatorId || myPlayer?.isModerator || currentPlayer?.isModerator));
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -443,30 +450,41 @@ export default function App() {
                       onOpenFullModal={() => setIsHistoryOpen(true)}
                     />
 
-                    {/* Locked Player Identity Bar - strictly locks player card perspective */}
-                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-400">
+                    {/* Perspective Selector - Allows Moderator to inspect cards & switch back easily */}
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
                       <div className="flex items-center gap-1.5">
                         <Lock className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Akun Pemain Terhubung:</span>
                       </div>
                       {isModerator ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          {currentPlayerId !== room.moderatorId && (
+                            <button
+                              onClick={() => {
+                                setCurrentPlayerId(room.moderatorId);
+                              }}
+                              className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm"
+                            >
+                              <Crown className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Kembali ke Moderator</span>
+                            </button>
+                          )}
+
                           <select
                             value={currentPlayerId}
                             onChange={(e) => {
                               setCurrentPlayerId(e.target.value);
-                              localStorage.setItem('werewolf_player_id', e.target.value);
                             }}
                             className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none font-medium"
                           >
                             {room.players.map(p => (
                               <option key={p.id} value={p.id}>
-                                {p.name} {p.status === 'eliminated' ? '(Tereliminasi)' : ''}
+                                {p.name} {p.id === room.moderatorId ? '(Moderator)' : p.status === 'eliminated' ? '(Tereliminasi)' : ''}
                               </option>
                             ))}
                           </select>
                           <span className="text-[10px] font-semibold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800">
-                            Moderator
+                            Pemandu
                           </span>
                         </div>
                       ) : (
@@ -491,6 +509,7 @@ export default function App() {
                     onOpenHistory={() => setIsHistoryOpen(true)}
                     onResetGame={handleResetGame}
                     onTriggerDawnTransition={handleManualDawnTransition}
+                    onTriggerNightTransition={() => setShowNightTransition(true)}
                   />
                 )}
               </div>
@@ -598,6 +617,13 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Dramatic Phase Transition Overlay: Nightfall */}
+      <NightTransitionOverlay
+        isOpen={showNightTransition}
+        cycle={room?.cycle || 1}
+        onComplete={() => setShowNightTransition(false)}
+      />
 
       {/* Dramatic Phase Transition Overlay: Night to Day */}
       <PhaseTransitionOverlay
