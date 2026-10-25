@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown 
+  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown, Link 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep, RoleId } from './types/game';
 import { api } from './utils/api';
@@ -27,7 +27,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const [joinCode, setJoinCode] = useState('');
-  const [playerName, setPlayerName] = useState('');
+  const [invitedCode, setInvitedCode] = useState<string>('');
+  const [playerName, setPlayerName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('werewolf_player_name') || '';
+    }
+    return '';
+  });
 
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isRoleDetailsOpen, setIsRoleDetailsOpen] = useState(false);
@@ -46,27 +52,49 @@ export default function App() {
   const prevStageRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Detect direct invitation link (?room=CODE or ?join=CODE or ?code=CODE)
+    const params = new URLSearchParams(window.location.search);
+    const codeFromUrl = (params.get('room') || params.get('join') || params.get('code') || '').toUpperCase().trim();
+    if (codeFromUrl) {
+      setInvitedCode(codeFromUrl);
+      setJoinCode(codeFromUrl);
+    }
+
     const savedCode = localStorage.getItem('werewolf_room_code');
     const savedPlayerId = localStorage.getItem('werewolf_player_id');
 
-    if (savedCode) {
+    // If an invitation link is opened and differs from previous saved room,
+    // prioritize the invited room code!
+    const targetRoomCode = codeFromUrl || savedCode;
+
+    if (targetRoomCode) {
       setLoading(true);
-      api.getRoom(savedCode)
+      api.getRoom(targetRoomCode)
         .then(r => {
-          setRoom(r);
+          // If the player is already recognized in this room (reconnection)
           if (savedPlayerId && r.players.some(p => p.id === savedPlayerId)) {
+            setRoom(r);
             setCurrentPlayerId(savedPlayerId);
             const player = r.players.find(p => p.id === savedPlayerId);
             if (player?.isModerator) {
               setActiveTab('moderator');
             }
-          } else if (r.players.length > 0) {
+          } else if (!codeFromUrl && r.players.length > 0) {
+            // Reconnect default if no specific new invite code was provided
+            setRoom(r);
             setCurrentPlayerId(r.players[0].id);
+          } else {
+            // Invited player opening a room link for the first time
+            setJoinCode(targetRoomCode);
           }
         })
         .catch(() => {
-          localStorage.removeItem('werewolf_room_code');
-          localStorage.removeItem('werewolf_player_id');
+          if (!codeFromUrl) {
+            localStorage.removeItem('werewolf_room_code');
+            localStorage.removeItem('werewolf_player_id');
+          }
         })
         .finally(() => setLoading(false));
     }
@@ -159,8 +187,13 @@ export default function App() {
       setRoom(result.room);
       setCurrentPlayerId(result.playerId);
       setActiveTab('moderator');
+      localStorage.setItem('werewolf_player_name', name);
       localStorage.setItem('werewolf_room_code', result.room.code);
       localStorage.setItem('werewolf_player_id', result.playerId);
+      if (typeof window !== 'undefined') {
+        const newUrl = `${window.location.pathname}?room=${result.room.code}`;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal membuat room');
     } finally {
@@ -170,7 +203,8 @@ export default function App() {
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!joinCode.trim()) {
+    const code = (joinCode || invitedCode).trim().toUpperCase();
+    if (!code) {
       setError('Masukkan kode room');
       return;
     }
@@ -178,12 +212,17 @@ export default function App() {
     setLoading(true);
     try {
       const name = playerName.trim() || `Pemain ${Math.floor(Math.random() * 100)}`;
-      const result = await api.joinRoom(joinCode.trim().toUpperCase(), name, false);
+      const result = await api.joinRoom(code, name, false);
       setRoom(result.room);
       setCurrentPlayerId(result.playerId);
       setActiveTab('player');
+      localStorage.setItem('werewolf_player_name', name);
       localStorage.setItem('werewolf_room_code', result.room.code);
       localStorage.setItem('werewolf_player_id', result.playerId);
+      if (typeof window !== 'undefined') {
+        const newUrl = `${window.location.pathname}?room=${result.room.code}`;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal bergabung ke room');
     } finally {
@@ -205,8 +244,13 @@ export default function App() {
       setRoom(finalRoom);
       setCurrentPlayerId(res.playerId);
       setActiveTab('moderator');
+      localStorage.setItem('werewolf_player_name', 'Moderator');
       localStorage.setItem('werewolf_room_code', code);
       localStorage.setItem('werewolf_player_id', res.playerId);
+      if (typeof window !== 'undefined') {
+        const newUrl = `${window.location.pathname}?room=${code}`;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat demo');
     } finally {
@@ -303,6 +347,12 @@ export default function App() {
     localStorage.removeItem('werewolf_player_id');
     setRoom(null);
     setCurrentPlayerId('');
+    setInvitedCode('');
+    setJoinCode('');
+    if (typeof window !== 'undefined') {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+    }
   };
 
   return (
@@ -345,74 +395,134 @@ export default function App() {
               </h1>
             </div>
 
-            <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl space-y-6">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Nama Anda:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Masukkan nama Anda..."
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-slate-500 transition-colors"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
-                  <div>
-                    <strong className="text-sm text-slate-200 flex items-center gap-1.5">
-                      <PlusCircle className="w-4 h-4 text-slate-400" /> Buat Room Baru
-                    </strong>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Sebagai Host atau Moderator. Buat kode room baru untuk dibagikan.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleCreateRoom}
-                    disabled={loading}
-                    className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <span>Buat Room</span>
-                  </button>
+            {invitedCode ? (
+              <div className="p-6 sm:p-8 bg-slate-900 border border-indigo-500/50 rounded-3xl shadow-2xl space-y-6 text-center animate-in fade-in">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-full text-xs font-semibold">
+                  <Link className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Link Undangan Terdeteksi</span>
                 </div>
 
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">
+                    Anda Diundang Bergabung ke Room
+                  </span>
+                  <div className="text-4xl sm:text-5xl font-mono font-black text-amber-400 tracking-widest mt-1">
+                    #{invitedCode}
+                  </div>
+                </div>
+
+                <form onSubmit={handleJoinRoom} className="space-y-4 max-w-sm mx-auto text-left">
                   <div>
-                    <strong className="text-sm text-slate-200 flex items-center gap-1.5">
-                      <LogIn className="w-4 h-4 text-slate-400" /> Gabung Room
-                    </strong>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                      Masukkan Nama Anda:
+                    </label>
                     <input
                       type="text"
-                      placeholder="KODE ROOM"
-                      value={joinCode}
-                      onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                      maxLength={5}
-                      className="mt-2 w-full uppercase font-mono tracking-widest text-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-slate-500"
+                      placeholder="Masukkan nama Anda..."
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      autoFocus
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
+
                   <button
-                    onClick={handleJoinRoom}
-                    disabled={loading || !joinCode}
-                    className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+                    type="submit"
+                    disabled={loading || !playerName.trim()}
+                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-950 disabled:opacity-50 cursor-pointer"
                   >
-                    <span>Masuk ke Room</span>
+                    <LogIn className="w-4 h-4" />
+                    <span>Gabung Langsung ke Room</span>
+                  </button>
+                </form>
+
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-center gap-4 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvitedCode('');
+                      setJoinCode('');
+                      if (typeof window !== 'undefined') {
+                        const cleanUrl = window.location.pathname;
+                        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-200 transition-colors underline cursor-pointer"
+                  >
+                    Gunakan kode lain atau buat room baru
                   </button>
                 </div>
               </div>
+            ) : (
+              <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl space-y-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                    Nama Anda:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Masukkan nama Anda..."
+                    value={playerName}
+                    onChange={(e) => setPlayerName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-slate-500 transition-colors"
+                  />
+                </div>
 
-              <div className="pt-2 border-t border-slate-800 text-center">
-                <button
-                  onClick={handleQuickDemoRoom}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Mode Demo (Langsung Buat 6 Pemain untuk Pengujian)</span>
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <strong className="text-sm text-slate-200 flex items-center gap-1.5">
+                        <PlusCircle className="w-4 h-4 text-slate-400" /> Buat Room Baru
+                      </strong>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Sebagai Host atau Moderator. Buat kode room baru untuk dibagikan.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={loading}
+                      className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <span>Buat Room</span>
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <strong className="text-sm text-slate-200 flex items-center gap-1.5">
+                        <LogIn className="w-4 h-4 text-slate-400" /> Gabung Room
+                      </strong>
+                      <input
+                        type="text"
+                        placeholder="KODE ROOM"
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                        maxLength={5}
+                        className="mt-2 w-full uppercase font-mono tracking-widest text-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-slate-500"
+                      />
+                    </div>
+                    <button
+                      onClick={handleJoinRoom}
+                      disabled={loading || !joinCode}
+                      className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+                    >
+                      <span>Masuk ke Room</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800 text-center">
+                  <button
+                    onClick={handleQuickDemoRoom}
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Mode Demo (Langsung Buat 6 Pemain untuk Pengujian)</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           /* 2. IN-GAME ROOM */

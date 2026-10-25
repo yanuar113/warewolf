@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { 
-  Users, Crown, Play, Sparkles, Copy, Check, Plus, Minus, Info 
+  Users, Crown, Play, Sparkles, Copy, Check, Plus, Minus, Info, Link, Share2 
 } from 'lucide-react';
 import { GameRoom, RoleId } from '../types/game';
 import { ROLE_DEFINITIONS, getRecommendedRoleConfig } from '../utils/roles';
 import { sounds } from '../utils/audio';
+import { copyToClipboard } from '../utils/clipboard';
 
 interface Props {
   room: GameRoom;
@@ -24,12 +25,41 @@ export function Lobby({
   onOpenRules,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [starting, setStarting] = useState(false);
 
-  const copyRoomCode = () => {
-    navigator.clipboard.writeText(room.code);
+  const inviteUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname}?room=${room.code}`
+    : `?room=${room.code}`;
+
+  const copyRoomCode = async () => {
+    await copyToClipboard(room.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyInviteLink = async () => {
+    if (!inviteUrl) return;
+    await copyToClipboard(inviteUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleShare = async () => {
+    if (!inviteUrl) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Undangan Room Werewolf',
+          text: `Yuk main Werewolf bersama! Masuk langsung ke Room #${room.code}:`,
+          url: inviteUrl,
+        });
+        return;
+      } catch {
+        // Fall back to copy
+      }
+    }
+    await copyInviteLink();
   };
 
   const playingPlayers = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId);
@@ -73,25 +103,70 @@ export function Lobby({
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
       {/* Room Code Card */}
-      <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl text-center space-y-3">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Kode Room Permainan
-        </span>
-        <h2 className="text-4xl sm:text-6xl font-bold font-mono tracking-widest text-white">
-          {room.code}
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
-          Bagikan kode room ini kepada pemain lain untuk bergabung melalui perangkat masing-masing.
-        </p>
+      <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Kode Room Permainan
+          </span>
+          <h2 className="text-4xl sm:text-6xl font-bold font-mono tracking-widest text-white mt-1">
+            {room.code}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mt-2">
+            Bagikan link undangan atau kode room ini kepada teman untuk langsung masuk ke lobby.
+          </p>
+        </div>
 
-        <div className="pt-2 flex items-center justify-center gap-3">
+        {/* Direct Invitation Link Bar */}
+        <div className="max-w-md mx-auto">
+          <div className="flex items-center gap-2 p-1.5 bg-slate-950 border border-slate-700/80 rounded-2xl shadow-inner">
+            <div className="pl-2.5 text-indigo-400 shrink-0">
+              <Link className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              readOnly
+              value={inviteUrl}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="flex-1 bg-transparent border-0 text-xs text-slate-200 font-mono focus:outline-none select-all truncate px-1 py-1"
+            />
+            <button
+              onClick={copyInviteLink}
+              title="Salin Link Undangan Lengkap"
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 shrink-0 shadow-sm ${
+                copiedLink 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
+            >
+              {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedLink ? 'Link Tersalin!' : 'Salin Link'}</span>
+            </button>
+          </div>
+          {copiedLink && (
+            <p className="text-[11px] text-emerald-400 font-medium mt-1.5 animate-in fade-in">
+              Link undangan berhasil disalin! Teman Anda dapat mengkliknya untuk langsung bergabung.
+            </p>
+          )}
+        </div>
+
+        {/* Action Buttons Row */}
+        <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5">
+          <button
+            onClick={handleShare}
+            className="px-4 py-2 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700 text-indigo-200 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all active:scale-95 shadow-sm"
+          >
+            <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Bagikan Undangan</span>
+          </button>
+
           <button
             onClick={copyRoomCode}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-medium flex items-center gap-2 transition-colors"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors active:scale-95"
           >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-slate-400" />}
-            <span>{copied ? 'Kode Tersalin' : 'Salin Kode'}</span>
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+            <span>{copied ? 'Kode Tersalin' : 'Salin Kode Saja'}</span>
           </button>
+
           <button
             onClick={onOpenRules}
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-medium transition-colors"

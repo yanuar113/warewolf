@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Volume2, VolumeX, BookOpen, Crown, Copy, Check, History, LogOut } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Crown, Copy, Check, History, LogOut, Share2 } from 'lucide-react';
 import { sounds } from '../utils/audio';
+import { copyToClipboard } from '../utils/clipboard';
 
 interface Props {
   roomCode?: string;
@@ -28,6 +29,7 @@ export function TopBar({
   stage,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(sounds.enabled);
 
   const toggleAudio = () => {
@@ -35,11 +37,31 @@ export function TopBar({
     setAudioEnabled(!audioEnabled);
   };
 
-  const copyRoomCode = () => {
+  const copyRoomCode = async () => {
     if (!roomCode) return;
-    navigator.clipboard.writeText(roomCode);
+    await copyToClipboard(roomCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareInviteLink = async () => {
+    if (!roomCode || typeof window === 'undefined') return;
+    const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Undangan Room Werewolf',
+          text: `Yuk main Werewolf bersama! Masuk langsung ke Room #${roomCode}:`,
+          url: url,
+        });
+        return;
+      } catch {
+        // Fall back to copy
+      }
+    }
+    await copyToClipboard(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   return (
@@ -51,14 +73,24 @@ export function TopBar({
             Werewolf
           </span>
           {roomCode && (
-            <button
-              onClick={copyRoomCode}
-              title="Salin Kode Room"
-              className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-mono font-medium bg-slate-900 border border-slate-700 rounded text-slate-300 hover:text-white hover:border-slate-500 active:scale-95 transition-all min-h-[32px] shrink-0"
-            >
-              <span>#{roomCode}</span>
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-            </button>
+            <div className="flex items-center shrink-0">
+              <button
+                onClick={copyRoomCode}
+                title="Salin Kode Room"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-mono font-medium bg-slate-900 border border-slate-700 rounded-l text-slate-300 hover:text-white hover:border-slate-500 active:scale-95 transition-all min-h-[32px] shrink-0"
+              >
+                <span>#{roomCode}</span>
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+              </button>
+              <button
+                onClick={shareInviteLink}
+                title="Bagikan / Salin Link Undangan Langsung"
+                className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium bg-indigo-950/90 hover:bg-indigo-900 border border-l-0 border-indigo-700 text-indigo-300 hover:text-white rounded-r active:scale-95 transition-all min-h-[32px] shrink-0 shadow-sm"
+              >
+                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{copiedLink ? 'Link Tersalin' : 'Undang'}</span>
+              </button>
+            </div>
           )}
         </div>
 
