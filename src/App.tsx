@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown, Link 
+  Sparkles, LogIn, PlusCircle, AlertCircle, Smartphone, LogOut, Lock, User, Crown, Link, Trash2 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep, RoleId } from './types/game';
 import { api } from './utils/api';
@@ -40,6 +40,7 @@ export default function App() {
   const [isRoleRevealOpen, setIsRoleRevealOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // Phase transition states for dramatic dawn & nightfall animations
   const [showPhaseTransition, setShowPhaseTransition] = useState(false);
@@ -73,7 +74,7 @@ export default function App() {
       setLoading(true);
       api.getRoom(targetRoomCode)
         .then(r => {
-          // If the player is already recognized in this room (reconnection)
+          // If the player is already recognized in this room (valid reconnection)
           if (savedPlayerId && r.players.some(p => p.id === savedPlayerId)) {
             setRoom(r);
             setCurrentPlayerId(savedPlayerId);
@@ -81,19 +82,19 @@ export default function App() {
             if (player?.isModerator) {
               setActiveTab('moderator');
             }
-          } else if (!codeFromUrl && r.players.length > 0) {
-            // Reconnect default if no specific new invite code was provided
-            setRoom(r);
-            setCurrentPlayerId(r.players[0].id);
           } else {
-            // Invited player opening a room link for the first time
+            // Pemain belum terdaftar atau tidak memiliki ID valid di room ini.
+            // JANGAN pernah default ke r.players[0] karena itu host/moderator!
+            // Minta pemain untuk mengisi nama mereka terlebih dahulu.
             setJoinCode(targetRoomCode);
           }
         })
-        .catch(() => {
-          if (!codeFromUrl) {
-            localStorage.removeItem('werewolf_room_code');
-            localStorage.removeItem('werewolf_player_id');
+        .catch((err) => {
+          localStorage.removeItem('werewolf_room_code');
+          localStorage.removeItem('werewolf_player_id');
+          const msg = err instanceof Error ? err.message : '';
+          if (msg.includes('dibersihkan') || msg.includes('berakhir') || msg.includes('tidak ditemukan')) {
+            setError('Sesi room sebelumnya telah berakhir atau dibersihkan otomatis dari server.');
           }
         })
         .finally(() => setLoading(false));
@@ -109,8 +110,21 @@ export default function App() {
         setIsRoleRevealOpen(true);
         sounds.playVictory();
       }
-    } catch {
-      // Room polling fallback
+    } catch (err) {
+      // Room expired / cleaned up / deleted from server
+      const msg = err instanceof Error ? err.message : '';
+      if (
+        msg.includes('dibersihkan') || 
+        msg.includes('berakhir') || 
+        msg.includes('tidak ditemukan') ||
+        msg.includes('404')
+      ) {
+        localStorage.removeItem('werewolf_room_code');
+        localStorage.removeItem('werewolf_player_id');
+        setRoom(null);
+        setCurrentPlayerId('');
+        setError('Sesi room telah selesai atau dibersihkan oleh sistem/moderator demi efisiensi.');
+      }
     }
   }, [isRoleRevealOpen]);
 
@@ -179,15 +193,19 @@ export default function App() {
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = playerName.trim();
+    if (!trimmedName) {
+      setError('Nama Anda wajib diisi sebelum membuat room!');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const name = playerName.trim() || 'Moderator';
-      const result = await api.createRoom(name);
+      const result = await api.createRoom(trimmedName);
       setRoom(result.room);
       setCurrentPlayerId(result.playerId);
       setActiveTab('moderator');
-      localStorage.setItem('werewolf_player_name', name);
+      localStorage.setItem('werewolf_player_name', trimmedName);
       localStorage.setItem('werewolf_room_code', result.room.code);
       localStorage.setItem('werewolf_player_id', result.playerId);
       if (typeof window !== 'undefined') {
@@ -208,15 +226,19 @@ export default function App() {
       setError('Masukkan kode room');
       return;
     }
+    const trimmedName = playerName.trim();
+    if (!trimmedName) {
+      setError('Nama Anda wajib diisi sebelum masuk ke room!');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const name = playerName.trim() || `Pemain ${Math.floor(Math.random() * 100)}`;
-      const result = await api.joinRoom(code, name, false);
+      const result = await api.joinRoom(code, trimmedName, false);
       setRoom(result.room);
       setCurrentPlayerId(result.playerId);
       setActiveTab('player');
-      localStorage.setItem('werewolf_player_name', name);
+      localStorage.setItem('werewolf_player_name', trimmedName);
       localStorage.setItem('werewolf_room_code', result.room.code);
       localStorage.setItem('werewolf_player_id', result.playerId);
       if (typeof window !== 'undefined') {
@@ -225,6 +247,29 @@ export default function App() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal bergabung ke room');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    if (!room) return;
+    setLoading(true);
+    try {
+      await api.deleteRoom(room.code);
+      localStorage.removeItem('werewolf_room_code');
+      localStorage.removeItem('werewolf_player_id');
+      setRoom(null);
+      setCurrentPlayerId('');
+      setInvitedCode('');
+      setJoinCode('');
+      setIsDeleteConfirmOpen(false);
+      if (typeof window !== 'undefined') {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal menghapus room');
     } finally {
       setLoading(false);
     }
@@ -413,23 +458,34 @@ export default function App() {
 
                 <form onSubmit={handleJoinRoom} className="space-y-4 max-w-sm mx-auto text-left">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                      Masukkan Nama Anda:
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-slate-300">
+                        Masukkan Nama Anda:
+                      </label>
+                      <span className="text-[11px] font-medium text-amber-400">
+                        *Wajib Diisi
+                      </span>
+                    </div>
                     <input
                       type="text"
-                      placeholder="Masukkan nama Anda..."
+                      placeholder="Masukkan nama Anda (wajib)..."
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value)}
+                      maxLength={25}
                       autoFocus
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
                     />
+                    {!playerName.trim() && (
+                      <p className="text-[11px] text-amber-400/90 mt-1.5">
+                        Isi nama Anda untuk bergabung ke room ini.
+                      </p>
+                    )}
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading || !playerName.trim()}
-                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-950 disabled:opacity-50 cursor-pointer"
+                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-950 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <LogIn className="w-4 h-4" />
                     <span>Gabung Langsung ke Room</span>
@@ -456,16 +512,27 @@ export default function App() {
             ) : (
               <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl space-y-6">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    Nama Anda:
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-300">
+                      Nama Anda:
+                    </label>
+                    <span className="text-[11px] font-medium text-amber-400">
+                      *Wajib Diisi
+                    </span>
+                  </div>
                   <input
                     type="text"
-                    placeholder="Masukkan nama Anda..."
+                    placeholder="Masukkan nama Anda (wajib)..."
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-slate-500 transition-colors"
+                    maxLength={25}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
                   />
+                  {!playerName.trim() && (
+                    <p className="text-[11px] text-amber-400/90 mt-1.5">
+                      Pemain wajib mengisi nama sebelum membuat atau bergabung ke room.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -480,8 +547,8 @@ export default function App() {
                     </div>
                     <button
                       onClick={handleCreateRoom}
-                      disabled={loading}
-                      className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                      disabled={loading || !playerName.trim()}
+                      className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <span>Buat Room</span>
                     </button>
@@ -503,8 +570,8 @@ export default function App() {
                     </div>
                     <button
                       onClick={handleJoinRoom}
-                      disabled={loading || !joinCode}
-                      className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+                      disabled={loading || !joinCode.trim() || !playerName.trim()}
+                      className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <span>Masuk ke Room</span>
                     </button>
@@ -652,6 +719,19 @@ export default function App() {
                 >
                   Role Reveal
                 </button>
+                {isModerator && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <button
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800 text-rose-300 hover:text-white rounded-lg font-semibold transition-all shadow-sm active:scale-95 cursor-pointer text-xs"
+                      title="Hapus room dari server untuk menghemat memori dan penyimpanan"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Hapus Room</span>
+                    </button>
+                  </>
+                )}
                 <span aria-hidden="true">·</span>
                 <button
                   onClick={() => setIsExitConfirmOpen(true)}
@@ -722,6 +802,43 @@ export default function App() {
                 className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-md transition-colors"
               >
                 Ya, Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete / Free Room Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-slate-900 border border-rose-800/80 rounded-2xl p-6 shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-950 border border-rose-700 flex items-center justify-center mx-auto text-rose-400">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Akhiri & Hapus Room?</h3>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                Room <strong className="text-amber-400">#{room?.code}</strong> dan seluruh riwayat sesi permainan akan langsung dihapus dari sistem server demi efisiensi memori dan penyimpanan.
+              </p>
+              <p className="text-[11px] text-rose-400 mt-2 font-medium">
+                Semua pemain di room ini akan otomatis dikeluarkan.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                disabled={loading}
+                className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleDeleteRoom}
+                disabled={loading}
+                className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{loading ? 'Menghapus...' : 'Ya, Hapus Room'}</span>
               </button>
             </div>
           </div>

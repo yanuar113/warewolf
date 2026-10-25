@@ -52,6 +52,42 @@ function checkWinCondition(room: GameRoom): 'werewolf' | 'village' | null {
   return null;
 }
 
+// ---------------- ROOM EXPIRATION & CLEANUP ENGINE ----------------
+// Batas waktu inaktif room (Time-To-Live) demi efisiensi memori & performa server:
+const TTL_FINISHED_GAME_MS = 20 * 60 * 1000;      // 20 menit setelah game selesai (GAME_OVER)
+const TTL_INACTIVE_LOBBY_MS = 90 * 60 * 1000;     // 1.5 jam jika menggantung di LOBBY tanpa aksi
+const TTL_ABANDONED_GAME_MS = 3 * 60 * 60 * 1000; // 3 jam jika permainan ditinggalkan tanpa progres
+
+function isRoomExpired(room: GameRoom): boolean {
+  const lastActive = room.updatedAt || Date.now();
+  const elapsed = Date.now() - lastActive;
+
+  if (room.stage === 'GAME_OVER') {
+    return elapsed > TTL_FINISHED_GAME_MS;
+  }
+  if (room.stage === 'LOBBY') {
+    return elapsed > TTL_INACTIVE_LOBBY_MS;
+  }
+  return elapsed > TTL_ABANDONED_GAME_MS;
+}
+
+function cleanupInactiveRooms(): number {
+  let cleanedCount = 0;
+  for (const [code, room] of rooms.entries()) {
+    if (isRoomExpired(room)) {
+      rooms.delete(code);
+      cleanedCount++;
+    }
+  }
+  if (cleanedCount > 0) {
+    console.log(`[STORAGE-CLEANUP] Otomatis menghapus ${cleanedCount} room/sesi lama yang tidak aktif demi efisiensi server.`);
+  }
+  return cleanedCount;
+}
+
+// Jalankan pembersihan otomatis berkala setiap 10 menit
+setInterval(cleanupInactiveRooms, 10 * 60 * 1000);
+
 // ---------------- SECURITY & PRIVACY HELPERS ----------------
 
 // Helper to identify requester from headers, query, or body
@@ -149,12 +185,22 @@ app.get('/api/health', (req, res) => {
 // Create a new room
 app.post('/api/rooms', (req, res) => {
   const { hostName } = req.body;
+  const trimmedName = typeof hostName === 'string' ? hostName.trim() : '';
+
+  if (!trimmedName) {
+    return res.status(400).json({ error: 'Nama Anda wajib diisi. Silakan masukkan nama sebelum membuat room.' });
+  }
+
+  if (trimmedName.length > 25) {
+    return res.status(400).json({ error: 'Nama terlalu panjang (maksimal 25 karakter).' });
+  }
+
   const code = generateRoomCode();
   const hostPlayerId = 'p_' + Math.random().toString(36).substring(2, 9);
 
   const initialPlayer: Player = {
     id: hostPlayerId,
-    name: hostName?.trim() || 'Moderator',
+    name: trimmedName,
     status: 'alive',
     isModerator: true,
     joinedAt: Date.now(),
@@ -204,6 +250,13 @@ app.get('/api/rooms/:code', (req, res) => {
   if (!room) {
     return res.status(404).json({ error: 'Kode room tidak ditemukan' });
   }
+
+  // Bersihkan otomatis jika sesi sudah kedaluwarsa karena tidak aktif
+  if (isRoomExpired(room)) {
+    rooms.delete(code);
+    return res.status(404).json({ error: 'Sesi room ini telah berakhir dan dibersihkan karena sudah lama tidak aktif.' });
+  }
+
   const requesterId = getRequesterId(req);
   res.json({ room: sanitizeRoomForPlayer(room, requesterId) });
 });
@@ -219,20 +272,49 @@ app.post('/api/rooms/:code/join', (req, res) => {
     return res.status(404).json({ error: 'Room tidak ditemukan' });
   }
 
-  const trimmedName = playerName?.trim() || `Pemain ${room.players.length + 1}`;
+  // Bersihkan otomatis jika sesi sudah kedaluwarsa karena tidak aktif
+  if (isRoomExpired(room)) {
+    rooms.delete(code);
+    return res.status(404).json({ error: 'Sesi room ini telah berakhir dan dibersihkan karena sudah lama tidak aktif.' });
+  }
+
+  const trimmedName = typeof playerName === 'string' ? playerName.trim() : '';
+  if (!trimmedName) {
+    return res.status(400).json({ error: 'Nama Anda wajib diisi. Silakan masukkan nama sebelum masuk ke room.' });
+  }
+
+  if (trimmedName.length > 25) {
+    return res.status(400).json({ error: 'Nama terlalu panjang (maksimal 25 karakter).' });
+  }
   
   const existingPlayer = room.players.find(p => p.name.toLowerCase() === trimmedName.toLowerCase());
   if (existingPlayer) {
-    if (asModerator) {
-      if (existingPlayer.id === room.hostId || requesterId === room.hostId) {
+    // Izinkan rekoneksi jika ID pengirim cocok dengan ID pemain yang sudah ada
+    if (requesterId && requesterId === existingPlayer.id) {
+      if (asModerator && (existingPlayer.id === room.hostId || requesterId === room.hostId)) {
         existingPlayer.isModerator = true;
         room.moderatorId = existingPlayer.id;
-      } else {
-        return res.status(403).json({ error: 'Akses ditolak. Hanya pembuat room (Host) yang dapat menetapkan Moderator.' });
       }
+      room.updatedAt = Date.now();
+      return res.json({ room: sanitizeRoomForPlayer(room, existingPlayer.id), playerId: existingPlayer.id });
     }
-    room.updatedAt = Date.now();
-    return res.json({ room: sanitizeRoomForPlayer(room, existingPlayer.id), playerId: existingPlayer.id });
+
+    // Jika permainan sudah berjalan dan bukan pemain rekoneksi
+    if (room.stage !== 'LOBBY') {
+      return res.status(400).json({ 
+        error: `Nama "${trimmedName}" sudah terdaftar di room ini. Gunakan sesi perangkat Anda sebelumnya untuk rekoneksi.` 
+      });
+    }
+
+    // Di lobby: tolak nama duplikat agar tidak ada 2 orang bernama sama
+    return res.status(400).json({ 
+      error: `Nama "${trimmedName}" sudah digunakan oleh pemain lain di room ini. Silakan pilih nama lain.` 
+    });
+  }
+
+  // Cegah pemain baru bergabung jika permainan sudah dimulai
+  if (room.stage !== 'LOBBY') {
+    return res.status(400).json({ error: 'Permainan sudah dimulai. Pemain baru tidak dapat masuk di tengah permainan.' });
   }
 
   const newPlayerId = 'p_' + Math.random().toString(36).substring(2, 9);
@@ -264,7 +346,7 @@ app.post('/api/rooms/:code/join', (req, res) => {
     id: 'log_' + Date.now(),
     timestamp: Date.now(),
     cycle: room.cycle,
-    phase: room.stage === 'NIGHT' ? 'NIGHT' : 'DAY',
+    phase: 'NIGHT',
     title: 'Pemain Bergabung',
     description: `${newPlayer.name} telah masuk ke room.`,
   });
@@ -879,6 +961,21 @@ app.post('/api/rooms/:code/reset-game', (req, res) => {
 
   room.updatedAt = Date.now();
   res.json({ room: sanitizeRoomForPlayer(room, requesterId) });
+});
+
+// Delete / End Room (Frees server memory & storage immediately)
+app.delete('/api/rooms/:code', (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const room = rooms.get(code);
+  if (!room) return res.status(404).json({ error: 'Room tidak ditemukan atau sudah dibersihkan' });
+
+  const requesterId = getRequesterId(req);
+  if (!requesterId || (requesterId !== room.moderatorId && requesterId !== room.hostId)) {
+    return res.status(403).json({ error: 'Akses ditolak. Hanya Moderator atau Host yang dapat menghapus room ini.' });
+  }
+
+  rooms.delete(code);
+  res.json({ success: true, message: `Room ${code} berhasil dihapus dari sistem.` });
 });
 
 // ---------------- VITE & STATIC HANDLING ----------------

@@ -198,6 +198,16 @@ export const api = {
     return data.room;
   },
 
+  async deleteRoom(code: string): Promise<void> {
+    const res = await fetch(`/api/rooms/${code}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Gagal menghapus room');
+    this.broadcastUpdate(code);
+  },
+
   broadcastUpdate(code: string) {
     if (channel) {
       try {
