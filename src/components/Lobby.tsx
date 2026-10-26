@@ -105,7 +105,7 @@ export function Lobby({
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
       {/* Room Code Card */}
-      <div className="p-6 sm:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
+      <div className="p-4 sm:p-6 md:p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl text-center space-y-4">
         <div>
           <span className="text-xs font-semibold text-slate-400">
             Kode Ruang Permainan

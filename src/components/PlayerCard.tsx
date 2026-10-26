@@ -52,7 +52,7 @@ export function PlayerCard({ player }: Props) {
   const isAlive = player.status === 'alive';
 
   return (
-    <div className="w-full max-w-[320px] sm:max-w-sm mx-auto flex flex-col items-center">
+    <div className="w-full max-w-sm mx-auto flex flex-col items-center">
       {/* Privacy Notice */}
       <div className="w-full mb-1.5 flex items-center justify-between text-[11px] text-slate-500 px-1">
         <span>Privasi Layar</span>

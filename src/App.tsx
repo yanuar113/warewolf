@@ -48,6 +48,14 @@ export default function App() {
   }>({ cycle: 1 });
   const prevStageRef = useRef<string | null>(null);
 
+  const currentPlayerIdRef = useRef<string>(currentPlayerId);
+  useEffect(() => {
+    currentPlayerIdRef.current = currentPlayerId;
+    if (currentPlayerId && typeof window !== 'undefined') {
+      sessionStorage.setItem('werewolf_player_id', currentPlayerId);
+    }
+  }, [currentPlayerId]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -59,8 +67,8 @@ export default function App() {
       setJoinCode(codeFromUrl);
     }
 
-    const savedCode = localStorage.getItem('werewolf_room_code');
-    const savedPlayerId = localStorage.getItem('werewolf_player_id');
+    const savedCode = sessionStorage.getItem('werewolf_room_code') || localStorage.getItem('werewolf_room_code');
+    const savedPlayerId = sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id');
 
     // If an invitation link is opened and differs from previous saved room,
     // prioritize the invited room code!
@@ -68,24 +76,26 @@ export default function App() {
 
     if (targetRoomCode) {
       setLoading(true);
-      api.getRoom(targetRoomCode)
+      api.getRoom(targetRoomCode, savedPlayerId || undefined)
         .then(r => {
           // If the player is already recognized in this room (valid reconnection)
           if (savedPlayerId && r.players.some(p => p.id === savedPlayerId)) {
             setRoom(r);
             setCurrentPlayerId(savedPlayerId);
+            sessionStorage.setItem('werewolf_room_code', targetRoomCode);
+            sessionStorage.setItem('werewolf_player_id', savedPlayerId);
             const player = r.players.find(p => p.id === savedPlayerId);
             if (player?.isModerator) {
               setActiveTab('moderator');
             }
           } else {
             // Pemain belum terdaftar atau tidak memiliki ID valid di room ini.
-            // JANGAN pernah default ke r.players[0] karena itu host/moderator!
-            // Minta pemain untuk mengisi nama mereka terlebih dahulu.
             setJoinCode(targetRoomCode);
           }
         })
         .catch((err) => {
+          sessionStorage.removeItem('werewolf_room_code');
+          sessionStorage.removeItem('werewolf_player_id');
           localStorage.removeItem('werewolf_room_code');
           localStorage.removeItem('werewolf_player_id');
           const msg = err instanceof Error ? err.message : '';
@@ -99,9 +109,10 @@ export default function App() {
 
   const autoOpenedGameOverRoomsRef = useRef<Set<string>>(new Set());
 
-  const fetchLatestRoom = useCallback(async (code: string) => {
+  const fetchLatestRoom = useCallback(async (code: string, explicitPlayerId?: string) => {
+    const idToUse = explicitPlayerId || currentPlayerIdRef.current || (typeof window !== 'undefined' ? (sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id') || '') : '');
     try {
-      const updated = await api.getRoom(code);
+      const updated = await api.getRoom(code, idToUse || undefined);
       setRoom(updated);
 
       if (updated.stage === 'GAME_OVER') {
@@ -120,6 +131,8 @@ export default function App() {
         msg.includes('tidak ditemukan') ||
         msg.includes('404')
       ) {
+        sessionStorage.removeItem('werewolf_room_code');
+        sessionStorage.removeItem('werewolf_player_id');
         localStorage.removeItem('werewolf_room_code');
         localStorage.removeItem('werewolf_player_id');
         setRoom(null);
@@ -134,12 +147,12 @@ export default function App() {
 
     const unsubscribe = api.onBroadcast((broadcastCode) => {
       if (broadcastCode === room.code) {
-        fetchLatestRoom(room.code);
+        fetchLatestRoom(room.code, currentPlayerIdRef.current);
       }
     });
 
     const interval = setInterval(() => {
-      fetchLatestRoom(room.code);
+      fetchLatestRoom(room.code, currentPlayerIdRef.current);
     }, 1800);
 
     return () => {
@@ -186,10 +199,12 @@ export default function App() {
     setShowPhaseTransition(true);
   };
 
-  const savedPlayerId = typeof window !== 'undefined' ? localStorage.getItem('werewolf_player_id') : null;
-  const myPlayerId = savedPlayerId || currentPlayerId;
+  const savedPlayerId = typeof window !== 'undefined' 
+    ? (sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id')) 
+    : null;
+  const myPlayerId = currentPlayerId || savedPlayerId || '';
   const myPlayer = room?.players.find(p => p.id === myPlayerId);
-  const currentPlayer = room?.players.find(p => p.id === currentPlayerId) || room?.players[0];
+  const currentPlayer = room?.players.find(p => p.id === currentPlayerId) || myPlayer || room?.players[0];
   const isModerator = !!(room?.moderatorId && (myPlayerId === room.moderatorId || currentPlayer?.id === room.moderatorId || myPlayer?.isModerator || currentPlayer?.isModerator));
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -206,10 +221,13 @@ export default function App() {
       setRoom(result.room);
       setCurrentPlayerId(result.playerId);
       setActiveTab('moderator');
-      localStorage.setItem('werewolf_player_name', trimmedName);
-      localStorage.setItem('werewolf_room_code', result.room.code);
-      localStorage.setItem('werewolf_player_id', result.playerId);
       if (typeof window !== 'undefined') {
+        sessionStorage.setItem('werewolf_player_name', trimmedName);
+        sessionStorage.setItem('werewolf_room_code', result.room.code);
+        sessionStorage.setItem('werewolf_player_id', result.playerId);
+        localStorage.setItem('werewolf_player_name', trimmedName);
+        localStorage.setItem('werewolf_room_code', result.room.code);
+        localStorage.setItem('werewolf_player_id', result.playerId);
         const newUrl = `${window.location.pathname}?room=${result.room.code}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
       }
@@ -239,10 +257,13 @@ export default function App() {
       setRoom(result.room);
       setCurrentPlayerId(result.playerId);
       setActiveTab('player');
-      localStorage.setItem('werewolf_player_name', trimmedName);
-      localStorage.setItem('werewolf_room_code', result.room.code);
-      localStorage.setItem('werewolf_player_id', result.playerId);
       if (typeof window !== 'undefined') {
+        sessionStorage.setItem('werewolf_player_name', trimmedName);
+        sessionStorage.setItem('werewolf_room_code', result.room.code);
+        sessionStorage.setItem('werewolf_player_id', result.playerId);
+        localStorage.setItem('werewolf_player_name', trimmedName);
+        localStorage.setItem('werewolf_room_code', result.room.code);
+        localStorage.setItem('werewolf_player_id', result.playerId);
         const newUrl = `${window.location.pathname}?room=${result.room.code}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
       }
@@ -257,7 +278,9 @@ export default function App() {
     if (!room) return;
     setLoading(true);
     try {
-      await api.deleteRoom(room.code);
+      await api.deleteRoom(room.code, currentPlayerId);
+      sessionStorage.removeItem('werewolf_room_code');
+      sessionStorage.removeItem('werewolf_player_id');
       localStorage.removeItem('werewolf_room_code');
       localStorage.removeItem('werewolf_player_id');
       setRoom(null);
@@ -390,6 +413,8 @@ export default function App() {
   };
 
   const handleExitRoom = () => {
+    sessionStorage.removeItem('werewolf_room_code');
+    sessionStorage.removeItem('werewolf_player_id');
     localStorage.removeItem('werewolf_room_code');
     localStorage.removeItem('werewolf_player_id');
     setRoom(null);
@@ -403,7 +428,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full">
       <TopBar
         roomCode={room?.code}
         activeTab={activeTab}
@@ -417,7 +442,7 @@ export default function App() {
         stage={room?.stage}
       />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 md:p-8 pb-24 md:pb-8 flex flex-col">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-6 pb-24 md:pb-8 flex flex-col items-center justify-start">
         {error && (
           <div className="mb-6 p-4 bg-slate-900 border border-rose-800 text-rose-300 rounded-2xl flex items-center justify-between text-xs sm:text-sm">
             <div className="flex items-center gap-2">
@@ -622,7 +647,7 @@ export default function App() {
               <div className="space-y-6 flex-1 flex flex-col">
                 
                 {activeTab === 'player' ? (
-                  <div className="space-y-6 max-w-md mx-auto w-full">
+                  <div className="space-y-6 max-w-sm sm:max-w-md mx-auto w-full flex flex-col items-center justify-start">
                     {currentPlayer && <PlayerCard player={currentPlayer} />}
 
                     {currentPlayer && (
@@ -642,7 +667,7 @@ export default function App() {
                     />
 
                     {/* Perspective Selector - Allows Moderator to inspect cards & switch back easily */}
-                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
+                    <div className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
                       <div className="flex items-center gap-1.5">
                         <Lock className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Akun Pemain Terhubung:</span>

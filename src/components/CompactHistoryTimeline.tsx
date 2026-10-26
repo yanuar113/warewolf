@@ -9,7 +9,7 @@ interface Props {
 export function CompactHistoryTimeline({ deathHistory, onOpenFullModal }: Props) {
   if (!deathHistory || deathHistory.length === 0) {
     return (
-      <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 flex items-center justify-between">
+      <div className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-slate-500 shrink-0" />
           <span>Belum ada pemain yang tereliminasi.</span>
@@ -22,7 +22,7 @@ export function CompactHistoryTimeline({ deathHistory, onOpenFullModal }: Props)
   const recentRecords = deathHistory.slice(-4).reverse();
 
   return (
-    <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2.5">
+    <div className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 uppercase tracking-wide">
           <History className="w-3.5 h-3.5 text-slate-400" />

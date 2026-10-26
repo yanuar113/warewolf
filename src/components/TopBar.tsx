@@ -65,13 +65,14 @@ export function TopBar({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-2 sm:py-2.5">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-6">
+    <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-2.5 sm:px-6 py-2 sm:py-2.5 w-full">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-6 w-full">
         
         {/* Left: Brand & Room Code Pill */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          <span className="text-sm sm:text-base font-bold tracking-tight text-slate-100 whitespace-nowrap">
-            Werewolf Companion
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <span className="text-xs sm:text-base font-bold tracking-tight text-slate-100 whitespace-nowrap">
+            <span className="sm:hidden">Werewolf</span>
+            <span className="hidden sm:inline">Werewolf Companion</span>
           </span>
 
           {roomCode && (
@@ -79,18 +80,18 @@ export function TopBar({
               <button
                 onClick={copyRoomCode}
                 title="Salin Kode Ruang"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 font-mono font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors border-r border-slate-800 shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 font-mono font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors border-r border-slate-800 shrink-0 text-[11px] sm:text-xs"
               >
                 <span>#{roomCode}</span>
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
               </button>
               <button
                 onClick={shareInviteLink}
                 title="Bagikan Tautan Undangan"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 font-medium text-indigo-300 hover:text-white bg-indigo-950/80 hover:bg-indigo-900 transition-colors shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 font-medium text-indigo-300 hover:text-white bg-indigo-950/80 hover:bg-indigo-900 transition-colors shrink-0 text-[11px] sm:text-xs"
               >
-                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-indigo-400" />}
-                <span className="whitespace-nowrap">{copiedLink ? 'Tersalin' : 'Undang'}</span>
+                {copiedLink ? <Check className="w-3 h-3 text-emerald-400" /> : <Share2 className="w-3 h-3 text-indigo-400" />}
+                <span className="hidden xs:inline sm:inline whitespace-nowrap">{copiedLink ? 'Tersalin' : 'Undang'}</span>
               </button>
             </div>
           )}
