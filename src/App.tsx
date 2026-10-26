@@ -97,14 +97,19 @@ export default function App() {
     }
   }, []);
 
+  const autoOpenedGameOverRoomsRef = useRef<Set<string>>(new Set());
+
   const fetchLatestRoom = useCallback(async (code: string) => {
     try {
       const updated = await api.getRoom(code);
       setRoom(updated);
 
-      if (updated.stage === 'GAME_OVER' && !isRoleRevealOpen) {
-        setIsRoleRevealOpen(true);
-        sounds.playVictory();
+      if (updated.stage === 'GAME_OVER') {
+        if (!autoOpenedGameOverRoomsRef.current.has(updated.code)) {
+          autoOpenedGameOverRoomsRef.current.add(updated.code);
+          setIsRoleRevealOpen(true);
+          sounds.playVictory();
+        }
       }
     } catch (err) {
       // Room expired / cleaned up / deleted from server
@@ -122,7 +127,7 @@ export default function App() {
         setError('Sesi room telah selesai atau dibersihkan oleh sistem/moderator demi efisiensi.');
       }
     }
-  }, [isRoleRevealOpen]);
+  }, []);
 
   useEffect(() => {
     if (!room?.code) return;
@@ -334,9 +339,9 @@ export default function App() {
     setRoom(updated);
   };
 
-  const handlePerformAction = async (actionType: string, targetId: string) => {
+  const handlePerformAction = async (actionType: string, targetId?: string, targetIds?: string[]) => {
     if (!room || !currentPlayerId) return;
-    const updated = await api.submitPlayerAction(room.code, currentPlayerId, actionType, targetId);
+    const updated = await api.submitPlayerAction(room.code, currentPlayerId, actionType, targetId, targetIds);
     setRoom(updated);
   };
 
@@ -378,6 +383,7 @@ export default function App() {
 
   const handleResetGame = async () => {
     if (!room) return;
+    autoOpenedGameOverRoomsRef.current.delete(room.code);
     const updated = await api.resetGame(room.code);
     setRoom(updated);
     setIsRoleRevealOpen(false);
@@ -610,6 +616,7 @@ export default function App() {
                 onSetModerator={handleSetModerator}
                 onStartGame={handleStartGame}
                 onOpenRules={() => setIsRulesOpen(true)}
+                onDeleteRoom={() => setIsDeleteConfirmOpen(true)}
               />
             ) : (
               <div className="space-y-6 flex-1 flex flex-col">

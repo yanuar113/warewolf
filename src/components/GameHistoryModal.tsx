@@ -78,9 +78,9 @@ export function GameHistoryModal({
 
                   <div className="space-y-2.5">
                     {/* Night Phase Records */}
-                    {nightRecords.map(record => (
+                    {nightRecords.map((record, idx) => (
                       <div
-                        key={record.id}
+                        key={record.id ? `${record.id}_${idx}` : `dh_night_${idx}`}
                         className={`p-3 rounded-xl border flex items-start justify-between gap-3 text-xs ${
                           record.saved
                             ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-300'
@@ -117,9 +117,9 @@ export function GameHistoryModal({
                     ))}
 
                     {/* Day Phase Records */}
-                    {dayRecords.map(record => (
+                    {dayRecords.map((record, idx) => (
                       <div
-                        key={record.id}
+                        key={record.id ? `${record.id}_${idx}` : `dh_day_${idx}`}
                         className={`p-3 rounded-xl border flex items-start justify-between gap-3 text-xs ${
                           record.playerName.includes('Tidak ada')
                             ? 'bg-slate-900/60 border-slate-800/80 text-slate-400'

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { 
-  Users, Crown, Play, Sparkles, Copy, Check, Plus, Minus, Info, Link, Share2 
+  Users, Crown, Play, Sparkles, Copy, Check, Plus, Minus, Info, Link, Share2, Trash2 
 } from 'lucide-react';
 import { GameRoom, RoleId } from '../types/game';
 import { ROLE_DEFINITIONS, getRecommendedRoleConfig } from '../utils/roles';
@@ -14,6 +14,7 @@ interface Props {
   onSetModerator: (targetPlayerId: string) => Promise<void>;
   onStartGame: () => Promise<void>;
   onOpenRules: () => void;
+  onDeleteRoom?: () => void;
 }
 
 export function Lobby({
@@ -23,6 +24,7 @@ export function Lobby({
   onSetModerator,
   onStartGame,
   onOpenRules,
+  onDeleteRoom,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -173,6 +175,22 @@ export function Lobby({
           >
             Lihat Ringkasan Aturan
           </button>
+
+          {(isHost || isModerator) && onDeleteRoom && (
+            <button
+              onClick={onDeleteRoom}
+              className="px-4 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-rose-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Bubarkan & Hapus Room</span>
+            </button>
+          )}
+        </div>
+
+        {/* Active Session Notice */}
+        <div className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-center gap-2">
+          <Info className="w-3.5 h-3.5 text-emerald-400/80 shrink-0" />
+          <span>Sesi Ruang Aktif: Sesi room akan terus terjaga aktif secara otomatis selama ada pemain yang terhubung.</span>
         </div>
       </div>
 
@@ -191,44 +209,59 @@ export function Lobby({
             )}
           </div>
 
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {room.players.map(p => {
-              const isMe = p.id === currentPlayerId;
-              const isMod = p.id === room.moderatorId;
-
-              return (
-                <div
-                  key={p.id}
-                  className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-colors ${
-                    isMod
-                      ? 'bg-slate-950 border-indigo-700/60'
-                      : 'bg-slate-950 border-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    {isMod && <Crown className="w-4 h-4 text-amber-400 shrink-0" />}
-                    <span className="font-medium text-slate-200">
-                      {p.name} {isMe ? '(Anda)' : ''}
-                    </span>
+          {/* Moderator Info Card */}
+          {(() => {
+            const modPlayer = room.players.find(p => p.id === room.moderatorId || p.isModerator);
+            if (!modPlayer) return null;
+            return (
+              <div className="p-3 bg-indigo-950/40 border border-indigo-700/60 rounded-xl flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-100">{modPlayer.name} {modPlayer.id === currentPlayerId ? '(Anda)' : ''}</div>
+                    <div className="text-[10px] text-indigo-300">Pemandu Permainan (Tidak ikut bermain/divote)</div>
                   </div>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300 bg-indigo-950 px-2.5 py-1 rounded border border-indigo-800">
+                  Moderator
+                </span>
+              </div>
+            );
+          })()}
 
-                  <div className="flex items-center gap-2">
-                    {isMod ? (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
-                        Moderator
+          {/* Playing Players List */}
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+            {playingPlayers.length === 0 ? (
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400 text-center">
+                Belum ada pemain yang bergabung.
+              </div>
+            ) : (
+              playingPlayers.map(p => {
+                const isMe = p.id === currentPlayerId;
+
+                return (
+                  <div
+                    key={p.id}
+                    className="p-3 rounded-xl border bg-slate-950 border-slate-800 flex items-center justify-between text-xs transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-200">
+                        {p.name} {isMe ? '(Anda)' : ''}
                       </span>
-                    ) : isHost ? (
+                    </div>
+
+                    {isHost && (
                       <button
                         onClick={() => onSetModerator(p.id)}
                         className="text-[11px] text-slate-400 hover:text-slate-200 px-2 py-1 bg-slate-900 border border-slate-800 rounded hover:border-slate-700 transition-colors"
                       >
-                        Pilih Moderator
+                        Jadikan Moderator
                       </button>
-                    ) : null}
+                    )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
 
           <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400 flex items-start gap-2">

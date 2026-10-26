@@ -39,13 +39,13 @@ export function CompactHistoryTimeline({ deathHistory, onOpenFullModal }: Props)
       </div>
 
       <div className="space-y-1.5">
-        {recentRecords.map(record => {
+        {recentRecords.map((record, idx) => {
           const isNight = record.phase === 'Malam';
           const isNone = record.playerName.includes('Tidak ada');
 
           return (
             <div
-              key={record.id}
+              key={record.id ? `${record.id}_${idx}` : `dh_${idx}`}
               className="p-2 rounded-lg bg-slate-900 border border-slate-800/80 flex items-center justify-between gap-2 text-xs"
             >
               <div className="flex items-center gap-2 truncate">

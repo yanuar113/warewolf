@@ -104,11 +104,11 @@ export const api = {
     return data.room;
   },
 
-  async submitPlayerAction(code: string, playerId: string, actionType: string, targetId: string): Promise<GameRoom> {
+  async submitPlayerAction(code: string, playerId: string, actionType: string, targetId?: string, targetIds?: string[]): Promise<GameRoom> {
     const res = await fetch(`/api/rooms/${code}/action`, {
       method: 'POST',
       headers: getAuthHeaders(playerId),
-      body: JSON.stringify({ playerId, actionType, targetId }),
+      body: JSON.stringify({ playerId, actionType, targetId, targetIds }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Gagal mengirim aksi rahasia');

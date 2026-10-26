@@ -73,23 +73,39 @@ export function ModeratorDashboard({
     return () => clearInterval(interval);
   }, [room.timerRunning, room.discussionTimerSeconds, onUpdateTimer]);
 
-  const alivePlayers = room.players.filter(p => p.status === 'alive');
-  const eliminatedPlayers = room.players.filter(p => p.status === 'eliminated');
+  const playingPlayers = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId);
+  const alivePlayers = playingPlayers.filter(p => p.status === 'alive');
+  const eliminatedPlayers = playingPlayers.filter(p => p.status === 'eliminated');
   const aliveWerewolves = alivePlayers.filter(p => p.role === 'werewolf').length;
   const aliveVillagers = alivePlayers.filter(p => p.role !== 'werewolf').length;
 
-  const seerPlayer = room.players.find(p => p.role === 'seer');
+  const seerPlayer = room.players.find(p => p.role === 'seer' || (p.role === 'apprentice_seer' && room.apprenticeSeerPromoted));
   const seerTargetPlayer = room.players.find(p => p.id === room.nightActions.seerTargetId);
 
   const doctorPlayer = room.players.find(p => p.role === 'doctor');
   const doctorTargetPlayer = room.players.find(p => p.id === room.nightActions.doctorTargetId);
+
+  const bodyguardPlayer = room.players.find(p => p.role === 'bodyguard');
+  const bodyguardTargetPlayer = room.players.find(p => p.id === room.nightActions.bodyguardTargetId);
+
+  const sorceressPlayer = room.players.find(p => p.role === 'sorceress');
+  const sorceressTargetPlayer = room.players.find(p => p.id === room.nightActions.sorceressTargetId);
+
+  const cupidPlayer = room.players.find(p => p.role === 'cupid');
+  const cupidLovers = room.cupidLovers;
+  const lover1 = cupidLovers ? room.players.find(p => p.id === cupidLovers[0]) : null;
+  const lover2 = cupidLovers ? room.players.find(p => p.id === cupidLovers[1]) : null;
+
+  const witchPlayer = room.players.find(p => p.role === 'witch');
+  const witchHealTargetPlayer = room.players.find(p => p.id === room.nightActions.witchHealTargetId);
+  const witchPoisonTargetPlayer = room.players.find(p => p.id === room.nightActions.witchPoisonTargetId);
 
   const werewolfTargetPlayer = room.players.find(p => p.id === room.nightActions.werewolfTargetId);
 
   const voteCounts: Record<string, { count: number; voters: string[] }> = {};
   Object.entries(room.dayVotes.votes).forEach(([voterId, targetId]) => {
     const voter = room.players.find(p => p.id === voterId);
-    if (!voter) return;
+    if (!voter || voter.foolLostVote) return;
     const weight = voter.role === 'mayor' ? 2 : 1;
     if (!voteCounts[targetId]) {
       voteCounts[targetId] = { count: 0, voters: [] };
@@ -196,6 +212,92 @@ export function ModeratorDashboard({
             </div>
           </div>
 
+          {/* Night Step Quick Tabs */}
+          <div className="flex flex-wrap gap-1.5 p-2 bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto text-[11px]">
+            <button
+              onClick={() => onNightStep('NIGHT_START')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                room.nightStep === 'NIGHT_START' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              1. Mulai
+            </button>
+            {room.cycle === 1 && cupidPlayer && (
+              <button
+                onClick={() => onNightStep('CUPID_STEP')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                  room.nightStep === 'CUPID_STEP' ? 'bg-rose-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Cupid
+              </button>
+            )}
+            <button
+              onClick={() => onNightStep('SEER_STEP')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                room.nightStep === 'SEER_STEP' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Seer
+            </button>
+            {doctorPlayer && (
+              <button
+                onClick={() => onNightStep('DOCTOR_STEP')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                  room.nightStep === 'DOCTOR_STEP' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Doctor
+              </button>
+            )}
+            {bodyguardPlayer && (
+              <button
+                onClick={() => onNightStep('BODYGUARD_STEP')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                  room.nightStep === 'BODYGUARD_STEP' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Bodyguard
+              </button>
+            )}
+            <button
+              onClick={() => onNightStep('WEREWOLF_STEP')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                room.nightStep === 'WEREWOLF_STEP' ? 'bg-rose-700 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Werewolf
+            </button>
+            {sorceressPlayer && (
+              <button
+                onClick={() => onNightStep('SORCERESS_STEP')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                  room.nightStep === 'SORCERESS_STEP' ? 'bg-purple-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Sorceress
+              </button>
+            )}
+            {witchPlayer && (
+              <button
+                onClick={() => onNightStep('WITCH_STEP')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                  room.nightStep === 'WITCH_STEP' ? 'bg-indigo-700 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Witch
+              </button>
+            )}
+            <button
+              onClick={() => onNightStep('NIGHT_RESOLVE')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                room.nightStep === 'NIGHT_RESOLVE' ? 'bg-amber-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Resolusi Malam
+            </button>
+          </div>
+
           {/* Step 1: Night Start */}
           {room.nightStep === 'NIGHT_START' && (
             <div className="space-y-4">
@@ -204,19 +306,61 @@ export function ModeratorDashboard({
                   Instruksi Moderator:
                 </span>
                 <p className="text-sm text-slate-200 leading-relaxed font-sans">
-                  "Semua pemain, tutup mata."
+                  "Semua pemain, tutup mata. Malam telah tiba di desa."
                 </p>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
                 <button
                   onClick={() => {
                     sounds.playNightFall();
-                    onNightStep('SEER_STEP');
+                    if (room.cycle === 1 && cupidPlayer) {
+                      onNightStep('CUPID_STEP');
+                    } else {
+                      onNightStep('SEER_STEP');
+                    }
                   }}
                   className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-sm transition-all min-h-[44px]"
                 >
-                  <span>Panggil Seer</span>
+                  <span>{room.cycle === 1 && cupidPlayer ? 'Panggil Cupid' : 'Panggil Seer'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step: Cupid (Night 1) */}
+          {room.nightStep === 'CUPID_STEP' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  Instruksi Moderator:
+                </span>
+                <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                  "Cupid, buka mata dan tentukan dua pemain untuk menjadi Pasangan Kekasih."
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                <div className="text-xs font-semibold text-slate-400 mb-2">Status Ikatan Cupid:</div>
+                {lover1 && lover2 ? (
+                  <div className="flex items-center justify-between text-xs p-2.5 bg-slate-900 rounded-lg border border-rose-900/60">
+                    <span className="text-rose-300 font-medium">Pasangan Terikat:</span>
+                    <strong className="text-white">{lover1.name} & {lover2.name}</strong>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Menunggu Cupid memilih 2 pemain di layarnya...
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => onNightStep('SEER_STEP')}
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
+                >
+                  <span>Selesai, Panggil Seer</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -242,15 +386,18 @@ export function ModeratorDashboard({
                     <div>
                       <span className="text-slate-300 font-medium">{seerPlayer?.name || 'Seer'}</span> memeriksa{' '}
                       <strong className="text-white">{seerTargetPlayer.name}</strong>
+                      {seerTargetPlayer.role === 'lycan' && (
+                        <span className="ml-1 text-[10px] text-amber-400 font-medium">(Lycan - tampak Werewolf)</span>
+                      )}
                     </div>
                     <span
                       className={`px-2 py-0.5 rounded font-bold uppercase text-[10px] ${
-                        seerTargetPlayer.role === 'werewolf'
+                        (seerTargetPlayer.role === 'werewolf' || seerTargetPlayer.role === 'lycan')
                           ? 'bg-rose-950 text-rose-300 border border-rose-800'
                           : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                       }`}
                     >
-                      {seerTargetPlayer.role === 'werewolf' ? 'Werewolf' : 'Villager'}
+                      {(seerTargetPlayer.role === 'werewolf' || seerTargetPlayer.role === 'lycan') ? 'Tampak Werewolf' : 'Villager'}
                     </span>
                   </div>
                 ) : (
@@ -262,10 +409,14 @@ export function ModeratorDashboard({
 
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={() => onNightStep('DOCTOR_STEP')}
+                  onClick={() => {
+                    if (doctorPlayer) onNightStep('DOCTOR_STEP');
+                    else if (bodyguardPlayer) onNightStep('BODYGUARD_STEP');
+                    else onNightStep('WEREWOLF_STEP');
+                  }}
                   className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-sm transition-all min-h-[44px]"
                 >
-                  <span>Selesai, Panggil Doctor</span>
+                  <span>{doctorPlayer ? 'Selesai, Panggil Doctor' : bodyguardPlayer ? 'Panggil Bodyguard' : 'Panggil Werewolf'}</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -300,8 +451,49 @@ export function ModeratorDashboard({
 
               <div className="flex justify-end gap-2">
                 <button
+                  onClick={() => {
+                    if (bodyguardPlayer) onNightStep('BODYGUARD_STEP');
+                    else onNightStep('WEREWOLF_STEP');
+                  }}
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-sm transition-all min-h-[44px]"
+                >
+                  <span>{bodyguardPlayer ? 'Selesai, Panggil Bodyguard' : 'Selesai, Panggil Werewolf'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step: Bodyguard */}
+          {room.nightStep === 'BODYGUARD_STEP' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" /> Instruksi Moderator:
+                </span>
+                <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                  "Doctor tutup mata. Bodyguard, buka mata dan pilih satu pemain untuk dikawal malam ini."
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                <div className="text-xs font-semibold text-slate-400 mb-2">Status Aksi Bodyguard:</div>
+                {bodyguardTargetPlayer ? (
+                  <div className="text-xs p-2.5 bg-slate-900 rounded-lg border border-slate-800 text-slate-200">
+                    <span className="font-medium">{bodyguardPlayer?.name || 'Bodyguard'}</span> mengawal{' '}
+                    <strong className="text-white">{bodyguardTargetPlayer.name}</strong> malam ini.
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Menunggu Bodyguard {bodyguardPlayer ? `(${bodyguardPlayer.name})` : ''} memilih target di layar perangkatnya...
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
                   onClick={() => onNightStep('WEREWOLF_STEP')}
-                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-rose-700 hover:bg-rose-600 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-sm transition-all min-h-[44px]"
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-cyan-700 hover:bg-cyan-600 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
                 >
                   <span>Selesai, Panggil Werewolf</span>
                   <ChevronRight className="w-4 h-4" />
@@ -318,7 +510,7 @@ export function ModeratorDashboard({
                   <Skull className="w-3.5 h-3.5" /> Instruksi Moderator:
                 </span>
                 <p className="text-sm text-slate-200 leading-relaxed font-sans">
-                  "Doctor tutup mata. Werewolf, buka mata dan tentukan target eliminasi malam ini."
+                  "Semua pelindung tutup mata. Werewolf, buka mata dan tentukan target eliminasi malam ini."
                 </p>
               </div>
 
@@ -357,8 +549,97 @@ export function ModeratorDashboard({
 
               <div className="flex justify-end gap-2">
                 <button
+                  onClick={() => {
+                    if (sorceressPlayer) onNightStep('SORCERESS_STEP');
+                    else if (witchPlayer) onNightStep('WITCH_STEP');
+                    else onNightStep('NIGHT_RESOLVE');
+                  }}
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-rose-700 hover:bg-rose-600 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
+                >
+                  <span>{sorceressPlayer ? 'Selesai, Panggil Sorceress' : witchPlayer ? 'Panggil Witch' : 'Selesai, Hitung Resolusi'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step: Sorceress */}
+          {room.nightStep === 'SORCERESS_STEP' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  Instruksi Moderator:
+                </span>
+                <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                  "Werewolf tutup mata. Sorceress, buka mata dan periksa satu pemain untuk mendeteksi posisi Seer."
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                <div className="text-xs font-semibold text-slate-400 mb-2">Status Aksi Sorceress:</div>
+                {sorceressTargetPlayer ? (
+                  <div className="flex items-center justify-between text-xs p-2.5 bg-slate-900 rounded-lg border border-purple-800">
+                    <div>
+                      <span className="text-slate-300 font-medium">{sorceressPlayer?.name || 'Sorceress'}</span> memeriksa{' '}
+                      <strong className="text-white">{sorceressTargetPlayer.name}</strong>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-purple-950 text-purple-300 border border-purple-700">
+                      {sorceressTargetPlayer.role === 'seer' ? 'Adalah Seer!' : 'Bukan Seer'}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Menunggu Sorceress {sorceressPlayer ? `(${sorceressPlayer.name})` : ''} memilih target...
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    if (witchPlayer) onNightStep('WITCH_STEP');
+                    else onNightStep('NIGHT_RESOLVE');
+                  }}
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-purple-700 hover:bg-purple-600 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
+                >
+                  <span>{witchPlayer ? 'Selesai, Panggil Witch' : 'Selesai, Hitung Resolusi'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step: Witch */}
+          {room.nightStep === 'WITCH_STEP' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  Instruksi Moderator:
+                </span>
+                <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                  "Sorceress tutup mata. Witch, buka mata. Target Werewolf malam ini adalah {werewolfTargetPlayer?.name || 'tidak ada'}. Apakah ingin menggunakan ramuan?"
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Ramuan Selamat:</span>
+                  <strong className={witchHealTargetPlayer ? 'text-emerald-400' : 'text-slate-500'}>
+                    {witchHealTargetPlayer ? `Dipakai untuk ${witchHealTargetPlayer.name}` : 'Tidak dipakai'}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Ramuan Racun:</span>
+                  <strong className={witchPoisonTargetPlayer ? 'text-rose-400' : 'text-slate-500'}>
+                    {witchPoisonTargetPlayer ? `Meracuni ${witchPoisonTargetPlayer.name}` : 'Tidak dipakai'}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
                   onClick={() => onNightStep('NIGHT_RESOLVE')}
-                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.99] text-slate-200 border border-slate-700 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all min-h-[44px]"
+                  className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
                 >
                   <span>Selesai, Hitung Resolusi Malam</span>
                   <ChevronRight className="w-4 h-4" />
@@ -372,7 +653,7 @@ export function ModeratorDashboard({
             <div className="space-y-4">
               <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
                 <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  Hasil Malam #{room.cycle}
+                  Hasil Rekapitulasi Malam #{room.cycle}
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -383,26 +664,39 @@ export function ModeratorDashboard({
                     </strong>
                   </div>
                   <div className="p-3 bg-slate-900 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block mb-1">Target Dilindungi Doctor:</span>
+                    <span className="text-slate-400 block mb-1">Perlindungan (Doctor/Bodyguard):</span>
                     <strong className="text-slate-200 text-sm">
-                      {doctorTargetPlayer ? doctorTargetPlayer.name : 'Tidak ada'}
+                      {[doctorTargetPlayer?.name, bodyguardTargetPlayer?.name].filter(Boolean).join(', ') || 'Tidak ada'}
                     </strong>
                   </div>
                 </div>
 
                 <div className="p-3 bg-slate-900 rounded-lg border border-slate-800 text-xs">
-                  <span className="text-slate-400 block mb-0.5">Kesimpulan:</span>
-                  {werewolfTargetPlayer && doctorTargetPlayer && werewolfTargetPlayer.id === doctorTargetPlayer.id ? (
-                    <span className="text-emerald-400 font-semibold">
-                      Target berhasil dilindungi oleh Doctor. Tidak ada pemain yang tereliminasi.
-                    </span>
-                  ) : werewolfTargetPlayer ? (
-                    <span className="text-rose-400 font-semibold">
-                      {werewolfTargetPlayer.name} tereliminasi.
-                    </span>
-                  ) : (
-                    <span className="text-slate-300">Tidak ada aksi eliminasi malam ini.</span>
-                  )}
+                  <span className="text-slate-400 block mb-0.5">Kesimpulan Akhir Malam:</span>
+                  {(() => {
+                    const victimId = room.nightActions.werewolfTargetId;
+                    const isSaved = victimId && (
+                      victimId === room.nightActions.doctorTargetId ||
+                      victimId === room.nightActions.bodyguardTargetId ||
+                      victimId === room.nightActions.witchHealTargetId
+                    );
+
+                    if (isSaved) {
+                      return (
+                        <span className="text-emerald-400 font-semibold">
+                          Target berhasil dilindungi! Tidak ada pemain yang gugur akibat serangan Werewolf.
+                        </span>
+                      );
+                    }
+                    if (werewolfTargetPlayer) {
+                      return (
+                        <span className="text-rose-400 font-semibold">
+                          {werewolfTargetPlayer.name} tereliminasi oleh Werewolf.
+                        </span>
+                      );
+                    }
+                    return <span className="text-slate-300">Tidak ada eliminasi malam ini.</span>;
+                  })()}
                 </div>
               </div>
 
@@ -632,7 +926,7 @@ export function ModeratorDashboard({
 
         {showRoleCheatSheet && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {room.players.map(p => {
+            {playingPlayers.map(p => {
               const roleDef = p.role ? ROLE_DEFINITIONS[p.role] : null;
               const isWolf = roleDef?.team === 'werewolf';
               const isAlive = p.status === 'alive';
@@ -679,9 +973,9 @@ export function ModeratorDashboard({
           Catatan Peristiwa
         </h4>
         <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-          {room.logs.slice().reverse().map(log => (
+          {room.logs.slice().reverse().map((log, idx) => (
             <div
-              key={log.id}
+              key={log.id ? `${log.id}_${idx}` : `log_${idx}`}
               className="p-2.5 rounded-lg border bg-slate-950 border-slate-800 text-xs text-slate-300"
             >
               <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">

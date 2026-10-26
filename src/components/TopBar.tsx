@@ -65,19 +65,21 @@ export function TopBar({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-2.5 sm:py-3">
-      <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-2 sm:py-2.5">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-6">
+        
         {/* Left: Brand & Room Code Pill */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <span className="text-sm sm:text-base font-bold tracking-tight text-slate-100 whitespace-nowrap shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          <span className="text-sm sm:text-base font-bold tracking-tight text-slate-100 whitespace-nowrap">
             Werewolf Companion
           </span>
+
           {roomCode && (
-            <div className="flex items-center shrink-0">
+            <div className="inline-flex items-center bg-slate-900 border border-slate-800 rounded-lg overflow-hidden shrink-0 shadow-sm text-xs">
               <button
                 onClick={copyRoomCode}
                 title="Salin Kode Ruang"
-                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-mono font-medium bg-slate-900 border border-slate-700 rounded-l text-slate-300 hover:text-white hover:border-slate-500 active:scale-95 transition-all min-h-[32px] shrink-0"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 font-mono font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors border-r border-slate-800 shrink-0"
               >
                 <span>#{roomCode}</span>
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
@@ -85,24 +87,24 @@ export function TopBar({
               <button
                 onClick={shareInviteLink}
                 title="Bagikan Tautan Undangan"
-                className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium bg-indigo-950/90 hover:bg-indigo-900 border border-l-0 border-indigo-700 text-indigo-300 hover:text-white rounded-r active:scale-95 transition-all min-h-[32px] shrink-0 shadow-sm"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 font-medium text-indigo-300 hover:text-white bg-indigo-950/80 hover:bg-indigo-900 transition-colors shrink-0"
               >
-                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{copiedLink ? 'Tautan Tersalin' : 'Undang'}</span>
+                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-indigo-400" />}
+                <span className="whitespace-nowrap">{copiedLink ? 'Tersalin' : 'Undang'}</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Center: Desktop Navigation Tabs (Hidden on mobile, handled by MobileBottomNav) */}
-        <nav className="hidden md:flex items-center gap-2">
-          {roomCode && (
-            <div className="flex items-center p-0.5 bg-slate-900 border border-slate-800 rounded-lg">
+        {/* Center: Desktop Navigation Tabs (Hidden on small mobile screens, handled by MobileBottomNav) */}
+        {roomCode && (
+          <nav className="hidden md:flex items-center gap-2 shrink-0">
+            <div className="inline-flex items-center p-1 bg-slate-900 border border-slate-800 rounded-lg text-xs">
               <button
                 onClick={() => onTabChange('player')}
-                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                className={`px-3 py-1 rounded-md transition-all whitespace-nowrap font-medium ${
                   activeTab === 'player'
-                    ? 'bg-slate-800 text-white shadow-sm'
+                    ? 'bg-slate-800 text-white shadow-sm font-semibold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -110,9 +112,9 @@ export function TopBar({
               </button>
               <button
                 onClick={() => onTabChange('moderator')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition-all whitespace-nowrap font-medium ${
                   activeTab === 'moderator'
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-indigo-600 text-white shadow-sm font-semibold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -120,39 +122,39 @@ export function TopBar({
                 <span>Panel Moderator</span>
               </button>
             </div>
-          )}
 
-          {roomCode && onOpenHistory && (
+            {onOpenHistory && (
+              <button
+                onClick={onOpenHistory}
+                title="Lihat riwayat eliminasi pemain per babak"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors whitespace-nowrap shrink-0"
+              >
+                <History className="w-3.5 h-3.5 text-slate-400" />
+                <span>Riwayat</span>
+                {historyCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-[10px] font-mono rounded text-indigo-300">
+                    {historyCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
-              onClick={onOpenHistory}
-              title="Lihat riwayat eliminasi pemain per babak"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-900 rounded-lg border border-slate-800 transition-colors whitespace-nowrap shrink-0"
+              onClick={onOpenRules}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors whitespace-nowrap shrink-0"
             >
-              <History className="w-3.5 h-3.5 text-slate-400" />
-              <span>Riwayat</span>
-              {historyCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-[10px] font-mono rounded text-slate-300">
-                  {historyCount}
-                </span>
-              )}
+              <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+              <span>Aturan</span>
             </button>
-          )}
+          </nav>
+        )}
 
-          <button
-            onClick={onOpenRules}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap shrink-0"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Aturan</span>
-          </button>
-        </nav>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Right: Sound & Exit Actions */}
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={toggleAudio}
             title={audioEnabled ? 'Nonaktifkan Suara' : 'Aktifkan Suara'}
-            className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors active:scale-95"
+            className="p-2 h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors active:scale-95 shrink-0"
           >
             {audioEnabled ? <Volume2 className="w-4 h-4 text-slate-300" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
           </button>
@@ -161,7 +163,7 @@ export function TopBar({
             <button
               onClick={onExitRoom}
               title="Keluar dari Ruang Permainan"
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] text-xs font-semibold bg-rose-950/90 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-800/90 rounded-lg active:scale-95 transition-all shadow-md shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 h-8 sm:h-9 text-xs font-semibold bg-rose-950/80 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-800/80 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 cursor-pointer whitespace-nowrap"
             >
               <LogOut className="w-3.5 h-3.5 text-rose-400" />
               <span className="hidden sm:inline">Keluar Ruang</span>

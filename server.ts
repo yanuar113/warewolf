@@ -27,6 +27,18 @@ if (fs.existsSync(publicPath)) {
   app.use(express.static(publicPath));
 }
 
+let logGlobalCounter = 0;
+function createLogId(tag = ''): string {
+  logGlobalCounter++;
+  return `log_${Date.now()}_${logGlobalCounter}_${Math.random().toString(36).substring(2, 7)}${tag ? `_${tag}` : ''}`;
+}
+
+let dhGlobalCounter = 0;
+function createDhId(tag = ''): string {
+  dhGlobalCounter++;
+  return `dh_${Date.now()}_${dhGlobalCounter}_${Math.random().toString(36).substring(2, 7)}${tag ? `_${tag}` : ''}`;
+}
+
 const rooms = new Map<string, GameRoom>();
 
 function generateRoomCode(): string {
@@ -41,22 +53,128 @@ function generateRoomCode(): string {
 function checkWinCondition(room: GameRoom): 'werewolf' | 'village' | null {
   const playingAlive = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId && p.status === 'alive');
   const aliveWerewolves = playingAlive.filter(p => p.role === 'werewolf').length;
-  const aliveVillagers = playingAlive.filter(p => p.role !== 'werewolf').length;
+  // Werewolf faction contains werewolf and sorceress
+  const aliveWerewolfFaction = playingAlive.filter(p => p.role === 'werewolf' || p.role === 'sorceress').length;
+  // Village faction contains villagers and village-aligned special roles
+  const aliveVillageFaction = playingAlive.filter(p => p.role !== 'werewolf' && p.role !== 'sorceress' && p.role !== 'tanner').length;
 
   if (aliveWerewolves === 0 && playingAlive.length > 0) {
     return 'village';
   }
-  if (aliveWerewolves >= aliveVillagers && aliveWerewolves > 0) {
+  if (aliveWerewolfFaction >= aliveVillageFaction && aliveWerewolves > 0) {
     return 'werewolf';
   }
   return null;
 }
 
+// ---------------- ELIMINATION HELPER (LOVERS & APPRENTICE SEER CASCADE) ----------------
+function eliminatePlayer(
+  room: GameRoom, 
+  targetId: string, 
+  reason: string, 
+  phaseName: string
+): { eliminatedHunter?: Player } {
+  const target = room.players.find(p => p.id === targetId);
+  if (!target || target.status === 'eliminated') return {};
+
+  target.status = 'eliminated';
+  target.eliminatedInPhase = phaseName;
+  target.eliminatedReason = reason;
+
+  room.deathHistory.push({
+    id: createDhId(),
+    cycle: room.cycle,
+    phase: room.stage === 'DAY' ? 'Siang' : 'Malam',
+    playerId: target.id,
+    playerName: target.name,
+    playerRole: target.role,
+    reason,
+    saved: false,
+    timestamp: Date.now(),
+  });
+
+  let hunterToRevenge: Player | undefined;
+  if (target.role === 'hunter') {
+    hunterToRevenge = target;
+  }
+
+  // Pewarisan peran Apprentice Seer jika Seer utama gugur
+  if (target.role === 'seer' && !room.apprenticeSeerPromoted) {
+    const aliveApprentice = room.players.find(p => p.role === 'apprentice_seer' && p.status === 'alive');
+    if (aliveApprentice) {
+      room.apprenticeSeerPromoted = true;
+      room.logs.push({
+        id: createLogId(''),
+        timestamp: Date.now(),
+        cycle: room.cycle,
+        phase: room.stage === 'DAY' ? 'DAY' : 'NIGHT',
+        title: 'Pewarisan Peran Seer',
+        description: `Seer utama (${target.name}) telah gugur. Apprentice Seer (${aliveApprentice.name}) kini mewarisi kemampuan menerawang.`,
+        isSecret: true,
+      });
+    }
+  }
+
+  // Ikatan Asmara Cupid (Suicide Pact): jika salah satu gugur, pasangannya ikut gugur karena patah hati
+  if (room.cupidLovers && room.cupidLovers.includes(target.id)) {
+    const partnerId = room.cupidLovers.find(id => id !== target.id);
+    const partner = room.players.find(p => p.id === partnerId);
+    if (partner && partner.status === 'alive') {
+      partner.status = 'eliminated';
+      partner.eliminatedInPhase = phaseName;
+      partner.eliminatedReason = 'Patah Hati (Ikatan Asmara Cupid)';
+
+      room.logs.push({
+        id: createLogId(''),
+        timestamp: Date.now(),
+        cycle: room.cycle,
+        phase: room.stage === 'DAY' ? 'DAY' : 'NIGHT',
+        title: 'Tragedi Ikatan Asmara',
+        description: `${partner.name} ikut tereliminasi karena patah hati mendalam setelah pasangannya (${target.name}) gugur!`,
+      });
+
+      room.deathHistory.push({
+        id: createDhId('love'),
+        cycle: room.cycle,
+        phase: room.stage === 'DAY' ? 'Siang' : 'Malam',
+        playerId: partner.id,
+        playerName: partner.name,
+        playerRole: partner.role,
+        reason: 'Patah Hati (Ikatan Asmara Cupid)',
+        saved: false,
+        timestamp: Date.now(),
+      });
+
+      if (partner.role === 'seer' && !room.apprenticeSeerPromoted) {
+        const aliveApprentice = room.players.find(p => p.role === 'apprentice_seer' && p.status === 'alive');
+        if (aliveApprentice) {
+          room.apprenticeSeerPromoted = true;
+          room.logs.push({
+            id: createLogId(''),
+            timestamp: Date.now(),
+            cycle: room.cycle,
+            phase: room.stage === 'DAY' ? 'DAY' : 'NIGHT',
+            title: 'Pewarisan Peran Seer',
+            description: `Seer utama (${partner.name}) telah gugur. Apprentice Seer (${aliveApprentice.name}) kini mewarisi kemampuan menerawang.`,
+            isSecret: true,
+          });
+        }
+      }
+
+      if (partner.role === 'hunter' && !hunterToRevenge) {
+        hunterToRevenge = partner;
+      }
+    }
+  }
+
+  return { eliminatedHunter: hunterToRevenge };
+}
+
 // ---------------- ROOM EXPIRATION & CLEANUP ENGINE ----------------
 // Batas waktu inaktif room (Time-To-Live) demi efisiensi memori & performa server:
-const TTL_FINISHED_GAME_MS = 20 * 60 * 1000;      // 20 menit setelah game selesai (GAME_OVER)
-const TTL_INACTIVE_LOBBY_MS = 90 * 60 * 1000;     // 1.5 jam jika menggantung di LOBBY tanpa aksi
-const TTL_ABANDONED_GAME_MS = 3 * 60 * 60 * 1000; // 3 jam jika permainan ditinggalkan tanpa progres
+const TTL_FINISHED_GAME_MS = 2 * 60 * 60 * 1000;    // 2 jam setelah game selesai (GAME_OVER)
+const TTL_INACTIVE_LOBBY_MS = 12 * 60 * 60 * 1000;  // 12 jam di LOBBY tanpa koneksi/aktivitas
+const TTL_ABANDONED_GAME_MS = 24 * 60 * 60 * 1000;  // 24 jam jika permainan ditinggalkan tanpa aktivitas
 
 function isRoomExpired(room: GameRoom): boolean {
   const lastActive = room.updatedAt || Date.now();
@@ -80,13 +198,13 @@ function cleanupInactiveRooms(): number {
     }
   }
   if (cleanedCount > 0) {
-    console.log(`[STORAGE-CLEANUP] Otomatis menghapus ${cleanedCount} room/sesi lama yang tidak aktif demi efisiensi server.`);
+    console.log(`[STORAGE-CLEANUP] Otomatis menghapus ${cleanedCount} room/sesi lama yang ditinggalkan demi efisiensi server.`);
   }
   return cleanedCount;
 }
 
-// Jalankan pembersihan otomatis berkala setiap 10 menit
-setInterval(cleanupInactiveRooms, 10 * 60 * 1000);
+// Jalankan pembersihan otomatis berkala setiap 5 menit
+setInterval(cleanupInactiveRooms, 5 * 60 * 1000);
 
 // ---------------- SECURITY & PRIVACY HELPERS ----------------
 
@@ -124,15 +242,36 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
   // Regular player view
   const myPlayer = room.players.find(p => p.id === requesterId);
 
+  // Pasangan Cupid info
+  let partnerId: string | undefined;
+  let partnerPlayer: Player | undefined;
+  if (room.cupidLovers && requesterId && room.cupidLovers.includes(requesterId)) {
+    partnerId = room.cupidLovers.find(id => id !== requesterId);
+    partnerPlayer = room.players.find(p => p.id === partnerId);
+  }
+
   // 1. Sanitize Player Roles
   sanitized.players = room.players.map(p => {
     const playerCopy = { ...p };
     const isMe = p.id === requesterId;
     const isTeammateWolf = myPlayer?.role === 'werewolf' && p.role === 'werewolf';
+    const isRevealedFool = p.role === 'fool' && p.foolPardoned;
 
-    if (!isMe && !isTeammateWolf) {
+    if (!isMe && !isTeammateWolf && !isRevealedFool) {
       playerCopy.role = undefined;
     }
+
+    // Pasangan kekasih Cupid mengetahui status pasangannya
+    if (room.cupidLovers && room.cupidLovers.includes(p.id)) {
+      if (isMe && partnerPlayer) {
+        playerCopy.isLover = true;
+        playerCopy.loverPartnerId = partnerPlayer.id;
+        playerCopy.loverPartnerName = partnerPlayer.name;
+      } else if (p.id === partnerId) {
+        playerCopy.isLover = true;
+      }
+    }
+
     return playerCopy;
   });
 
@@ -142,15 +281,40 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
       werewolfVotes: room.nightActions.werewolfVotes || {},
       werewolfTargetId: room.nightActions.werewolfTargetId,
     };
-  } else if (myPlayer?.role === 'seer') {
+  } else if (myPlayer?.role === 'seer' || (myPlayer?.role === 'apprentice_seer' && room.apprenticeSeerPromoted)) {
     sanitized.nightActions = {
       werewolfVotes: {},
       seerTargetId: room.nightActions.seerTargetId,
+      seerInspectionResult: room.nightActions.seerInspectionResult,
     };
   } else if (myPlayer?.role === 'doctor') {
     sanitized.nightActions = {
       werewolfVotes: {},
       doctorTargetId: room.nightActions.doctorTargetId,
+    };
+  } else if (myPlayer?.role === 'bodyguard') {
+    sanitized.nightActions = {
+      werewolfVotes: {},
+      bodyguardTargetId: room.nightActions.bodyguardTargetId,
+    };
+  } else if (myPlayer?.role === 'sorceress') {
+    sanitized.nightActions = {
+      werewolfVotes: {},
+      sorceressTargetId: room.nightActions.sorceressTargetId,
+      sorceressInspectionResult: room.nightActions.sorceressInspectionResult,
+    };
+  } else if (myPlayer?.role === 'cupid') {
+    sanitized.nightActions = {
+      werewolfVotes: {},
+      cupidTargetIds: room.nightActions.cupidTargetIds,
+    };
+  } else if (myPlayer?.role === 'witch') {
+    sanitized.nightActions = {
+      werewolfVotes: {},
+      witchHealTargetId: room.nightActions.witchHealTargetId,
+      witchPoisonTargetId: room.nightActions.witchPoisonTargetId,
+      witchHealUsed: room.nightActions.witchHealUsed,
+      witchPoisonUsed: room.nightActions.witchPoisonUsed,
     };
   } else {
     sanitized.nightActions = {
@@ -158,10 +322,17 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
     };
   }
 
-  // 3. Sanitize Secret Logs
+  // 3. Cupid lovers visibility
+  if (myPlayer?.role === 'cupid' || (room.cupidLovers && requesterId && room.cupidLovers.includes(requesterId))) {
+    sanitized.cupidLovers = room.cupidLovers;
+  } else {
+    sanitized.cupidLovers = undefined;
+  }
+
+  // 4. Sanitize Secret Logs
   sanitized.logs = room.logs.filter(log => !log.isSecret);
 
-  // 4. Sanitize Death History Roles (if game not over)
+  // 5. Sanitize Death History Roles (if game not over)
   sanitized.deathHistory = room.deathHistory.map(dh => ({
     ...dh,
     playerRole: undefined,
@@ -225,7 +396,7 @@ app.post('/api/rooms', (req, res) => {
     lastNightSaved: false,
     logs: [
       {
-        id: 'log_' + Date.now(),
+        id: createLogId(),
         timestamp: Date.now(),
         cycle: 0,
         phase: 'NIGHT',
@@ -256,6 +427,9 @@ app.get('/api/rooms/:code', (req, res) => {
     rooms.delete(code);
     return res.status(404).json({ error: 'Sesi room ini telah berakhir dan dibersihkan karena sudah lama tidak aktif.' });
   }
+
+  // Refresh timestamp agar room yang sedang dibuka pemain tidak pernah mati
+  room.updatedAt = Date.now();
 
   const requesterId = getRequesterId(req);
   res.json({ room: sanitizeRoomForPlayer(room, requesterId) });
@@ -339,11 +513,12 @@ app.post('/api/rooms/:code/join', (req, res) => {
   room.players.push(newPlayer);
   
   if (room.stage === 'LOBBY') {
-    room.roleConfig = getRecommendedRoleConfig(room.players.length);
+    const playingCount = room.players.filter(p => !p.isModerator && p.id !== room.moderatorId).length;
+    room.roleConfig = getRecommendedRoleConfig(playingCount);
   }
 
   room.logs.push({
-    id: 'log_' + Date.now(),
+    id: createLogId(),
     timestamp: Date.now(),
     cycle: room.cycle,
     phase: 'NIGHT',
@@ -393,7 +568,7 @@ app.post('/api/rooms/:code/set-moderator', (req, res) => {
   room.moderatorId = targetPlayerId;
 
   room.logs.push({
-    id: 'log_' + Date.now(),
+    id: createLogId(),
     timestamp: Date.now(),
     cycle: room.cycle,
     phase: room.stage === 'NIGHT' ? 'NIGHT' : 'DAY',
@@ -445,7 +620,7 @@ app.post('/api/rooms/:code/start-game', (req, res) => {
   room.deathHistory = [];
 
   room.logs.push({
-    id: 'log_' + Date.now(),
+    id: createLogId(),
     timestamp: Date.now(),
     cycle: 1,
     phase: 'NIGHT',
@@ -477,7 +652,7 @@ app.post('/api/rooms/:code/night-step', (req, res) => {
 // Submit Action
 app.post('/api/rooms/:code/action', (req, res) => {
   const code = req.params.code.toUpperCase();
-  const { playerId, actionType, targetId } = req.body;
+  const { playerId, actionType, targetId, targetIds } = req.body;
   const room = rooms.get(code);
   if (!room) return res.status(404).json({ error: 'Room tidak ditemukan' });
 
@@ -487,10 +662,11 @@ app.post('/api/rooms/:code/action', (req, res) => {
   }
 
   const player = room.players.find(p => p.id === playerId);
-  if (!player || player.status !== 'alive') {
-    return res.status(403).json({ error: 'Pemain tidak valid atau sudah tereliminasi.' });
+  if (!player || player.status !== 'alive' || player.isModerator || player.id === room.moderatorId) {
+    return res.status(403).json({ error: 'Pemain tidak valid, tereliminasi, atau merupakan Moderator (Pemandu).' });
   }
 
+  // 1. Werewolf Vote
   if (actionType === 'werewolf_vote') {
     if (player.role !== 'werewolf') {
       return res.status(403).json({ error: 'Hanya Werewolf yang dapat memilih target eliminasi.' });
@@ -498,6 +674,11 @@ app.post('/api/rooms/:code/action', (req, res) => {
     if (room.nightActions.werewolfVotes[playerId]) {
       return res.status(400).json({ error: 'Pilihan target Werewolf Anda sudah dikonfirmasi dan tidak dapat diubah.' });
     }
+    const targetPlayer = room.players.find(p => p.id === targetId);
+    if (!targetPlayer || targetPlayer.status !== 'alive') {
+      return res.status(400).json({ error: 'Target eliminasi tidak valid atau sudah gugur.' });
+    }
+
     room.nightActions.werewolfVotes[playerId] = targetId;
     
     const voteCounts: Record<string, number> = {};
@@ -515,42 +696,209 @@ app.post('/api/rooms/:code/action', (req, res) => {
     });
 
     room.nightActions.werewolfTargetId = chosenVictim;
+
+  // 2. Seer Inspect (including Apprentice Seer if promoted)
   } else if (actionType === 'seer_inspect') {
-    if (player.role !== 'seer') {
-      return res.status(403).json({ error: 'Hanya Seer yang dapat melakukan aksi ini.' });
+    const isMainSeer = player.role === 'seer';
+    const isPromotedApprentice = player.role === 'apprentice_seer' && room.apprenticeSeerPromoted;
+
+    if (!isMainSeer && !isPromotedApprentice) {
+      return res.status(403).json({ error: 'Hanya Seer (atau Apprentice Seer aktif) yang dapat melakukan penerawangan.' });
     }
     if (room.nightActions.seerTargetId) {
-      return res.status(400).json({ error: 'Kemampuan Seer hanya dapat digunakan 1 kali per malam dan tidak dapat diubah.' });
+      return res.status(400).json({ error: 'Kemampuan penerawangan hanya dapat digunakan 1 kali per malam dan tidak dapat diubah.' });
     }
-    room.nightActions.seerTargetId = targetId;
+
     const targetPlayer = room.players.find(p => p.id === targetId);
+    if (!targetPlayer || targetPlayer.status !== 'alive') {
+      return res.status(400).json({ error: 'Target penerawangan tidak valid atau sudah gugur.' });
+    }
+
+    room.nightActions.seerTargetId = targetId;
+
+    // Lycan special rule: Lycan appears as Werewolf to Seer!
+    const perceivedRole: 'werewolf' | 'villager' = 
+      (targetPlayer.role === 'werewolf' || targetPlayer.role === 'lycan') ? 'werewolf' : 'villager';
+
+    room.nightActions.seerInspectionResult = {
+      targetId: targetPlayer.id,
+      targetName: targetPlayer.name,
+      perceivedRole,
+    };
     
     room.logs.push({
-      id: 'log_' + Date.now(),
+      id: createLogId(),
       timestamp: Date.now(),
       cycle: room.cycle,
       phase: 'NIGHT',
       title: 'Pemeriksaan Seer',
-      description: `Seer (${player.name}) memeriksa ${targetPlayer?.name || 'pemain'}.`,
+      description: `${player.name} (${isMainSeer ? 'Seer' : 'Apprentice Seer'}) memeriksa ${targetPlayer.name}.`,
       isSecret: true,
     });
+
+  // 3. Doctor Protect
   } else if (actionType === 'doctor_protect') {
     if (player.role !== 'doctor') {
-      return res.status(403).json({ error: 'Hanya Doctor yang dapat melakukan aksi ini.' });
+      return res.status(403).json({ error: 'Hanya Doctor yang dapat melakukan aksi perlindungan.' });
     }
     if (room.nightActions.doctorTargetId) {
       return res.status(400).json({ error: 'Kemampuan Doctor hanya dapat digunakan 1 kali per malam dan tidak dapat diubah.' });
     }
-    room.nightActions.doctorTargetId = targetId;
     const targetPlayer = room.players.find(p => p.id === targetId);
+    if (!targetPlayer || targetPlayer.status !== 'alive') {
+      return res.status(400).json({ error: 'Target perlindungan tidak valid atau sudah gugur.' });
+    }
+
+    room.nightActions.doctorTargetId = targetId;
 
     room.logs.push({
-      id: 'log_' + Date.now(),
+      id: createLogId(),
       timestamp: Date.now(),
       cycle: room.cycle,
       phase: 'NIGHT',
       title: 'Perlindungan Doctor',
-      description: `Doctor (${player.name}) melindungi ${targetPlayer?.name || 'pemain'}.`,
+      description: `Doctor (${player.name}) melindungi ${targetPlayer.name}.`,
+      isSecret: true,
+    });
+
+  // 4. Bodyguard Protect
+  } else if (actionType === 'bodyguard_protect') {
+    if (player.role !== 'bodyguard') {
+      return res.status(403).json({ error: 'Hanya Bodyguard yang dapat melakukan aksi pengawalan.' });
+    }
+    if (room.nightActions.bodyguardTargetId) {
+      return res.status(400).json({ error: 'Kemampuan Bodyguard hanya dapat digunakan 1 kali per malam dan tidak dapat diubah.' });
+    }
+    const targetPlayer = room.players.find(p => p.id === targetId);
+    if (!targetPlayer || targetPlayer.status !== 'alive') {
+      return res.status(400).json({ error: 'Target pengawalan tidak valid atau sudah gugur.' });
+    }
+
+    room.nightActions.bodyguardTargetId = targetId;
+
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Pengawalan Bodyguard',
+      description: `Bodyguard (${player.name}) mengawal dan melindungi ${targetPlayer.name}.`,
+      isSecret: true,
+    });
+
+  // 5. Sorceress Inspect (Checks if target is Seer)
+  } else if (actionType === 'sorceress_inspect') {
+    if (player.role !== 'sorceress') {
+      return res.status(403).json({ error: 'Hanya Sorceress yang dapat melakukan aksi ini.' });
+    }
+    if (room.nightActions.sorceressTargetId) {
+      return res.status(400).json({ error: 'Kemampuan Sorceress hanya dapat digunakan 1 kali per malam dan tidak dapat diubah.' });
+    }
+    const targetPlayer = room.players.find(p => p.id === targetId);
+    if (!targetPlayer || targetPlayer.status !== 'alive') {
+      return res.status(400).json({ error: 'Target penerawangan tidak valid atau sudah gugur.' });
+    }
+
+    room.nightActions.sorceressTargetId = targetId;
+    const isSeer = targetPlayer.role === 'seer' || (targetPlayer.role === 'apprentice_seer' && !!room.apprenticeSeerPromoted);
+
+    room.nightActions.sorceressInspectionResult = {
+      targetId: targetPlayer.id,
+      targetName: targetPlayer.name,
+      isSeer,
+    };
+
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Penerawangan Sorceress',
+      description: `Sorceress (${player.name}) menerawang ${targetPlayer.name} untuk mencari Seer.`,
+      isSecret: true,
+    });
+
+  // 6. Cupid Link (Night 1 only)
+  } else if (actionType === 'cupid_link') {
+    if (player.role !== 'cupid') {
+      return res.status(403).json({ error: 'Hanya Cupid yang dapat mengikat pasangan asmara.' });
+    }
+    if (room.cycle !== 1) {
+      return res.status(400).json({ error: 'Kemampuan Cupid hanya aktif di malam pertama permainan.' });
+    }
+    if (room.cupidLovers && room.cupidLovers.length === 2) {
+      return res.status(400).json({ error: 'Pasangan asmara sudah ditentukan dan tidak dapat diubah.' });
+    }
+
+    const loverIds = targetIds || (targetId ? [targetId] : []);
+    if (!Array.isArray(loverIds) || loverIds.length !== 2) {
+      return res.status(400).json({ error: 'Cupid wajib memilih tepat 2 pemain untuk menjadi pasangan kekasih.' });
+    }
+    if (loverIds[0] === loverIds[1]) {
+      return res.status(400).json({ error: 'Pilih 2 pemain yang berbeda.' });
+    }
+
+    const p1 = room.players.find(p => p.id === loverIds[0] && p.status === 'alive');
+    const p2 = room.players.find(p => p.id === loverIds[1] && p.status === 'alive');
+    if (!p1 || !p2) {
+      return res.status(400).json({ error: 'Salah satu pemain yang dipilih tidak valid atau sudah tidak aktif.' });
+    }
+
+    room.cupidLovers = [loverIds[0], loverIds[1]];
+    room.nightActions.cupidTargetIds = [loverIds[0], loverIds[1]];
+
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Ikatan Asmara Cupid',
+      description: `Cupid (${player.name}) telah mengikat takdir asmara antara ${p1.name} dan ${p2.name}.`,
+      isSecret: true,
+    });
+
+  // 7. Witch Potion
+  } else if (actionType === 'witch_heal') {
+    if (player.role !== 'witch') {
+      return res.status(403).json({ error: 'Hanya Witch yang dapat menggunakan ramuan penyelamat.' });
+    }
+    if (room.nightActions.witchHealUsed) {
+      return res.status(400).json({ error: 'Ramuan penyelamat Witch hanya dapat digunakan 1 kali sepanjang permainan.' });
+    }
+    room.nightActions.witchHealTargetId = targetId;
+    room.nightActions.witchHealUsed = true;
+
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Ramuan Penyelamat Witch',
+      description: `Witch (${player.name}) menggunakan ramuan penyelamat.`,
+      isSecret: true,
+    });
+
+  } else if (actionType === 'witch_poison') {
+    if (player.role !== 'witch') {
+      return res.status(403).json({ error: 'Hanya Witch yang dapat menggunakan ramuan racun.' });
+    }
+    if (room.nightActions.witchPoisonUsed) {
+      return res.status(400).json({ error: 'Ramuan racun Witch hanya dapat digunakan 1 kali sepanjang permainan.' });
+    }
+    const targetPlayer = room.players.find(p => p.id === targetId && p.status === 'alive');
+    if (!targetPlayer) {
+      return res.status(400).json({ error: 'Target racun tidak valid.' });
+    }
+    room.nightActions.witchPoisonTargetId = targetId;
+    room.nightActions.witchPoisonUsed = true;
+
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Ramuan Racun Witch',
+      description: `Witch (${player.name}) meracuni ${targetPlayer.name}.`,
       isSecret: true,
     });
   }
@@ -571,90 +919,100 @@ app.post('/api/rooms/:code/resolve-night', (req, res) => {
   }
 
   const victimId = room.nightActions.werewolfTargetId;
-  const protectedId = room.nightActions.doctorTargetId;
+  const isDoctorProtected = victimId && victimId === room.nightActions.doctorTargetId;
+  const isBodyguardProtected = victimId && victimId === room.nightActions.bodyguardTargetId;
+  const isWitchHealed = victimId && victimId === room.nightActions.witchHealTargetId;
+  const isSavedFromWolves = isDoctorProtected || isBodyguardProtected || isWitchHealed;
 
-  let killedPlayer: Player | undefined;
+  let hunterTriggered: Player | undefined;
 
+  // 1. Proses target Werewolf
   if (victimId) {
-    if (victimId === protectedId) {
+    if (isSavedFromWolves) {
       room.lastNightSaved = true;
       room.lastNightKilledId = undefined;
 
+      const protectorName = isDoctorProtected ? 'Doctor' : isBodyguardProtected ? 'Bodyguard' : 'Witch';
       room.logs.push({
-        id: 'log_' + Date.now(),
+        id: createLogId(),
         timestamp: Date.now(),
         cycle: room.cycle,
         phase: 'NIGHT',
         title: 'Hasil Malam',
-        description: `Target Werewolf berhasil dilindungi oleh Doctor. Tidak ada korban tereliminasi.`,
+        description: `Target penyerangan berhasil diselamatkan oleh ${protectorName}. Tidak ada korban eliminasi Werewolf.`,
       });
 
       room.deathHistory.push({
-        id: 'dh_' + Date.now(),
+        id: createDhId(),
         cycle: room.cycle,
         phase: 'Malam',
         playerName: 'Tidak ada pemain tereliminasi',
-        reason: 'Target Werewolf dilindungi oleh Doctor',
+        reason: `Target Werewolf diselamatkan oleh ${protectorName}`,
         saved: true,
         timestamp: Date.now(),
       });
     } else {
-      killedPlayer = room.players.find(p => p.id === victimId);
-      if (killedPlayer) {
-        killedPlayer.status = 'eliminated';
-        killedPlayer.eliminatedInPhase = `Malam ${room.cycle}`;
-        killedPlayer.eliminatedReason = 'Serangan Werewolf';
-        room.lastNightKilledId = victimId;
-        room.lastNightSaved = false;
+      room.lastNightSaved = false;
+      room.lastNightKilledId = victimId;
+      const { eliminatedHunter } = eliminatePlayer(room, victimId, 'Serangan Werewolf', `Malam ${room.cycle}`);
+      if (eliminatedHunter) hunterTriggered = eliminatedHunter;
 
-        room.logs.push({
-          id: 'log_' + Date.now(),
-          timestamp: Date.now(),
-          cycle: room.cycle,
-          phase: 'NIGHT',
-          title: 'Hasil Malam',
-          description: `${killedPlayer.name} tereliminasi oleh Werewolf.`,
-        });
-
-        room.deathHistory.push({
-          id: 'dh_' + Date.now(),
-          cycle: room.cycle,
-          phase: 'Malam',
-          playerId: killedPlayer.id,
-          playerName: killedPlayer.name,
-          playerRole: killedPlayer.role,
-          reason: 'Serangan Werewolf',
-          saved: false,
-          timestamp: Date.now(),
-        });
-      }
+      const victim = room.players.find(p => p.id === victimId);
+      room.logs.push({
+        id: createLogId(),
+        timestamp: Date.now(),
+        cycle: room.cycle,
+        phase: 'NIGHT',
+        title: 'Hasil Malam',
+        description: `${victim?.name || 'Seorang warga'} tereliminasi oleh Werewolf.`,
+      });
     }
   } else {
     room.lastNightSaved = false;
     room.lastNightKilledId = undefined;
     room.logs.push({
-      id: 'log_' + Date.now(),
+      id: createLogId(),
       timestamp: Date.now(),
       cycle: room.cycle,
       phase: 'NIGHT',
       title: 'Hasil Malam',
-      description: 'Tidak ada serangan pada malam ini.',
+      description: 'Tidak ada serangan Werewolf pada malam ini.',
     });
 
     room.deathHistory.push({
-      id: 'dh_' + Date.now(),
+      id: createDhId(),
       cycle: room.cycle,
       phase: 'Malam',
       playerName: 'Tidak ada pemain tereliminasi',
-      reason: 'Tidak ada target penyerangan',
+      reason: 'Tidak ada target penyerangan Werewolf',
       saved: false,
       timestamp: Date.now(),
     });
   }
 
-  if (killedPlayer && killedPlayer.role === 'hunter') {
+  // 2. Proses racun Witch jika digunakan malam ini
+  if (room.nightActions.witchPoisonTargetId) {
+    const poisonId = room.nightActions.witchPoisonTargetId;
+    const { eliminatedHunter } = eliminatePlayer(room, poisonId, 'Ramuan Racun Witch', `Malam ${room.cycle}`);
+    if (eliminatedHunter && !hunterTriggered) hunterTriggered = eliminatedHunter;
+
+    const poisonTarget = room.players.find(p => p.id === poisonId);
+    room.logs.push({
+      id: createLogId(''),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Korban Racun Witch',
+      description: `${poisonTarget?.name || 'Seorang warga'} tereliminasi akibat racun misterius Witch.`,
+    });
+    // Reset poison target for next nights while preserving used flag
+    room.nightActions.witchPoisonTargetId = undefined;
+  }
+
+  // 3. Aksi Hunter Revenge jika ada Hunter yang tereliminasi
+  if (hunterTriggered) {
     room.stage = 'HUNTER_REVENGE';
-    room.hunterRevengePlayerId = killedPlayer.id;
+    room.hunterRevengePlayerId = hunterTriggered.id;
   } else {
     const win = checkWinCondition(room);
     if (win) {
@@ -687,42 +1045,40 @@ app.post('/api/rooms/:code/hunter-revenge', (req, res) => {
   }
 
   const target = room.players.find(p => p.id === targetId);
+  let secondaryHunter: Player | undefined;
+
   if (target && target.status === 'alive') {
-    target.status = 'eliminated';
-    target.eliminatedInPhase = `Fase Eliminasi Hunter (Babak ${room.cycle})`;
-    target.eliminatedReason = 'Target Eliminasi Hunter';
+    const { eliminatedHunter } = eliminatePlayer(
+      room, 
+      target.id, 
+      'Aksi Terakhir Hunter', 
+      `Balas Dendam Hunter (Babak ${room.cycle})`
+    );
+    if (eliminatedHunter) secondaryHunter = eliminatedHunter;
 
     room.logs.push({
-      id: 'log_' + Date.now(),
+      id: createLogId(),
       timestamp: Date.now(),
       cycle: room.cycle,
-      phase: 'NIGHT',
+      phase: room.stage === 'DAY' ? 'DAY' : 'NIGHT',
       title: 'Aksi Hunter',
-      description: `Hunter mengeliminasi ${target.name}.`,
-    });
-
-    room.deathHistory.push({
-      id: 'dh_' + Date.now(),
-      cycle: room.cycle,
-      phase: room.stage === 'DAY' ? 'Siang' : 'Malam',
-      playerId: target.id,
-      playerName: target.name,
-      playerRole: target.role,
-      reason: 'Aksi Terakhir Hunter',
-      saved: false,
-      timestamp: Date.now(),
+      description: `Hunter mengeliminasi ${target.name} sebelum menghembuskan nafas terakhirnya.`,
     });
   }
 
-  room.hunterRevengePlayerId = undefined;
-  const win = checkWinCondition(room);
-  if (win) {
-    room.stage = 'GAME_OVER';
-    room.winner = win;
+  if (secondaryHunter) {
+    room.hunterRevengePlayerId = secondaryHunter.id;
   } else {
-    room.stage = 'DAY';
-    room.dayStep = 'DAY_ANNOUNCE';
-    room.dayVotes = { votes: {} };
+    room.hunterRevengePlayerId = undefined;
+    const win = checkWinCondition(room);
+    if (win) {
+      room.stage = 'GAME_OVER';
+      room.winner = win;
+    } else {
+      room.stage = 'DAY';
+      room.dayStep = 'DAY_ANNOUNCE';
+      room.dayVotes = { votes: {} };
+    }
   }
 
   room.updatedAt = Date.now();
@@ -762,8 +1118,20 @@ app.post('/api/rooms/:code/vote-lynch', (req, res) => {
   }
 
   const voter = room.players.find(p => p.id === voterId);
-  if (!voter || voter.status !== 'alive') {
-    return res.status(403).json({ error: 'Hanya pemain aktif yang dapat melakukan voting.' });
+  if (!voter || voter.status !== 'alive' || voter.isModerator || voter.id === room.moderatorId) {
+    return res.status(403).json({ error: 'Hanya pemain aktif yang dapat melakukan voting. Moderator tidak ikut voting.' });
+  }
+
+  // Fool yang telah diampuni kehilangan hak suara voting
+  if (voter.foolLostVote) {
+    return res.status(400).json({ error: 'Fool (Idiot Desa) yang telah diampuni tidak memiliki hak suara voting.' });
+  }
+
+  if (targetId && targetId !== 'skip') {
+    const targetPlayer = room.players.find(p => p.id === targetId);
+    if (!targetPlayer || targetPlayer.isModerator || targetPlayer.id === room.moderatorId) {
+      return res.status(400).json({ error: 'Target voting tidak valid. Moderator tidak berpartisipasi sebagai pemain.' });
+    }
   }
 
   if (room.dayVotes.votes[voterId]) {
@@ -794,6 +1162,8 @@ app.post('/api/rooms/:code/resolve-day', (req, res) => {
     Object.entries(room.dayVotes.votes).forEach(([voterId, targetId]) => {
       if (!targetId || targetId === 'skip') return;
       const voter = room.players.find(p => p.id === voterId);
+      // Fool yang kehilangan hak suara tidak dihitung
+      if (voter?.foolLostVote) return;
       const weight = voter?.role === 'mayor' ? 2 : 1;
       counts[targetId] = (counts[targetId] || 0) + weight;
     });
@@ -817,46 +1187,90 @@ app.post('/api/rooms/:code/resolve-day', (req, res) => {
     }
   }
 
+  let hunterTriggered: Player | undefined;
+
   if (condemnedId && condemnedId !== 'skip') {
     const condemnedPlayer = room.players.find(p => p.id === condemnedId);
     if (condemnedPlayer) {
-      condemnedPlayer.status = 'eliminated';
-      condemnedPlayer.eliminatedInPhase = `Siang ${room.cycle}`;
-      condemnedPlayer.eliminatedReason = 'Voting Eliminasi Siang';
-      room.dayVotes.lynchedPlayerId = condemnedId;
+      // 1. TANNER KEMENANGAN INSTAN
+      if (condemnedPlayer.role === 'tanner') {
+        condemnedPlayer.status = 'eliminated';
+        condemnedPlayer.eliminatedInPhase = `Siang ${room.cycle}`;
+        condemnedPlayer.eliminatedReason = 'Voting Eliminasi Siang';
+        room.stage = 'GAME_OVER';
+        room.winner = 'tanner';
 
-      room.logs.push({
-        id: 'log_' + Date.now(),
-        timestamp: Date.now(),
-        cycle: room.cycle,
-        phase: 'DAY',
-        title: 'Hasil Voting Siang',
-        description: `${condemnedPlayer.name} tereliminasi berdasarkan hasil voting.`,
-      });
+        room.logs.push({
+          id: createLogId(),
+          timestamp: Date.now(),
+          cycle: room.cycle,
+          phase: 'DAY',
+          title: 'Kemenangan Mutlak Tanner',
+          description: `${condemnedPlayer.name} (Tanner) berhasil dieliminasi saat musyawarah voting siang dan meraih kemenangan tunggal!`,
+        });
 
-      room.deathHistory.push({
-        id: 'dh_' + Date.now(),
-        cycle: room.cycle,
-        phase: 'Siang',
-        playerId: condemnedPlayer.id,
-        playerName: condemnedPlayer.name,
-        playerRole: condemnedPlayer.role,
-        reason: 'Voting Eliminasi Siang',
-        saved: false,
-        timestamp: Date.now(),
-      });
+        room.deathHistory.push({
+          id: createDhId(),
+          cycle: room.cycle,
+          phase: 'Siang',
+          playerId: condemnedPlayer.id,
+          playerName: condemnedPlayer.name,
+          playerRole: condemnedPlayer.role,
+          reason: 'Voting Eliminasi Siang (Kemenangan Tanner)',
+          saved: false,
+          timestamp: Date.now(),
+        });
 
-      if (condemnedPlayer.role === 'hunter') {
-        room.stage = 'HUNTER_REVENGE';
-        room.hunterRevengePlayerId = condemnedPlayer.id;
         room.updatedAt = Date.now();
         return res.json({ room: sanitizeRoomForPlayer(room, requesterId) });
+      }
+
+      // 2. PENGAMPUNAN FOOL (IDIOT DESA)
+      if (condemnedPlayer.role === 'fool' && !condemnedPlayer.foolPardoned) {
+        condemnedPlayer.status = 'alive';
+        condemnedPlayer.foolPardoned = true;
+        condemnedPlayer.foolLostVote = true;
+
+        room.logs.push({
+          id: createLogId(),
+          timestamp: Date.now(),
+          cycle: room.cycle,
+          phase: 'DAY',
+          title: 'Pengampunan Fool (Idiot Desa)',
+          description: `${condemnedPlayer.name} terungkap sebagai Fool (Idiot Desa)! Sesuai aturan, ia mendapat pengampunan dan batal tereliminasi, namun kehilangan hak voting.`,
+        });
+
+        room.deathHistory.push({
+          id: createDhId(),
+          cycle: room.cycle,
+          phase: 'Siang',
+          playerId: condemnedPlayer.id,
+          playerName: condemnedPlayer.name,
+          playerRole: condemnedPlayer.role,
+          reason: 'Pengampunan Fool (Batal Tereliminasi)',
+          saved: true,
+          timestamp: Date.now(),
+        });
+      } else {
+        // 3. ELIMINASI BIASA DENGAN CASCADE LOVERS & HUNTER
+        room.dayVotes.lynchedPlayerId = condemnedId;
+        const { eliminatedHunter } = eliminatePlayer(room, condemnedPlayer.id, 'Voting Eliminasi Siang', `Siang ${room.cycle}`);
+        if (eliminatedHunter) hunterTriggered = eliminatedHunter;
+
+        room.logs.push({
+          id: createLogId(),
+          timestamp: Date.now(),
+          cycle: room.cycle,
+          phase: 'DAY',
+          title: 'Hasil Voting Siang',
+          description: `${condemnedPlayer.name} tereliminasi berdasarkan hasil voting musyawarah siang.`,
+        });
       }
     }
   } else {
     room.dayVotes.lynchedPlayerId = undefined;
     room.logs.push({
-      id: 'log_' + Date.now(),
+      id: createLogId(),
       timestamp: Date.now(),
       cycle: room.cycle,
       phase: 'DAY',
@@ -865,7 +1279,7 @@ app.post('/api/rooms/:code/resolve-day', (req, res) => {
     });
 
     room.deathHistory.push({
-      id: 'dh_' + Date.now(),
+      id: createDhId(),
       cycle: room.cycle,
       phase: 'Siang',
       playerName: 'Tidak ada eliminasi',
@@ -873,6 +1287,14 @@ app.post('/api/rooms/:code/resolve-day', (req, res) => {
       saved: false,
       timestamp: Date.now(),
     });
+  }
+
+  // Cek apakah Hunter tereliminasi dan memicu revenge
+  if (hunterTriggered) {
+    room.stage = 'HUNTER_REVENGE';
+    room.hunterRevengePlayerId = hunterTriggered.id;
+    room.updatedAt = Date.now();
+    return res.json({ room: sanitizeRoomForPlayer(room, requesterId) });
   }
 
   const win = checkWinCondition(room);
@@ -889,7 +1311,7 @@ app.post('/api/rooms/:code/resolve-day', (req, res) => {
     room.lastNightKilledId = undefined;
 
     room.logs.push({
-      id: 'log_' + Date.now(),
+      id: createLogId(),
       timestamp: Date.now(),
       cycle: room.cycle,
       phase: 'NIGHT',
@@ -951,7 +1373,7 @@ app.post('/api/rooms/:code/reset-game', (req, res) => {
   });
 
   room.logs.push({
-    id: 'log_' + Date.now(),
+    id: createLogId(),
     timestamp: Date.now(),
     cycle: 0,
     phase: 'NIGHT',

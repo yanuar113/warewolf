@@ -49,20 +49,28 @@ export function RoleRevealModal({
         {winner ? (
           <div
             className={`p-6 rounded-2xl border text-center space-y-2 ${
-              isVillageWin
+              winner === 'village'
                 ? 'bg-emerald-950/40 border-emerald-700 text-emerald-200'
+                : winner === 'tanner'
+                ? 'bg-purple-950/40 border-purple-700 text-purple-200'
                 : 'bg-rose-950/40 border-rose-700 text-rose-200'
             }`}
           >
             <span className="text-xs font-semibold uppercase tracking-wider opacity-80">
-              Hasil Permainan
+              Hasil Akhir Permainan
             </span>
             <h3 className="text-2xl sm:text-3xl font-bold tracking-wide">
-              {isVillageWin ? 'Kemenangan Tim Warga' : 'Kemenangan Tim Werewolf'}
+              {winner === 'village'
+                ? 'Kemenangan Tim Warga'
+                : winner === 'tanner'
+                ? 'Kemenangan Mutlak Tanner'
+                : 'Kemenangan Tim Werewolf'}
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto">
-              {isVillageWin
-                ? 'Seluruh Werewolf telah tereliminasi dari permainan.'
+              {winner === 'village'
+                ? 'Seluruh Werewolf telah tereliminasi dari desa.'
+                : winner === 'tanner'
+                ? 'Tanner (Penyamak Kulit) berhasil memancing warga untuk mengeliminasinya saat voting siang!'
                 : 'Jumlah Werewolf berhasil menyamai atau melebihi jumlah warga yang aktif.'}
             </p>
           </div>
@@ -148,9 +156,9 @@ export function RoleRevealModal({
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {room.deathHistory.map(record => (
+              {room.deathHistory.map((record, idx) => (
                 <div
-                  key={record.id}
+                  key={record.id ? `${record.id}_${idx}` : `dh_${idx}`}
                   className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
                     record.saved
                       ? 'bg-emerald-950/20 border-emerald-900/50 text-emerald-300'

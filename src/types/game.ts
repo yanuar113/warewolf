@@ -5,9 +5,16 @@ export type RoleId =
   | 'doctor' 
   | 'hunter' 
   | 'witch' 
-  | 'mayor';
+  | 'mayor'
+  | 'lycan'
+  | 'bodyguard'
+  | 'cupid'
+  | 'tanner'
+  | 'fool'
+  | 'sorceress'
+  | 'apprentice_seer';
 
-export type Team = 'werewolf' | 'village';
+export type Team = 'werewolf' | 'village' | 'tanner';
 
 export interface RoleDefinition {
   id: RoleId;
@@ -35,6 +42,11 @@ export interface Player {
   eliminatedReason?: string;
   inspectedBySeer?: boolean;
   protectedByDoctor?: boolean;
+  foolPardoned?: boolean;
+  foolLostVote?: boolean;
+  isLover?: boolean;
+  loverPartnerId?: string;
+  loverPartnerName?: string;
 }
 
 export type GameStage = 
@@ -46,9 +58,12 @@ export type GameStage =
 
 export type NightStep = 
   | 'NIGHT_START' 
+  | 'CUPID_STEP'
   | 'SEER_STEP' 
   | 'DOCTOR_STEP' 
+  | 'BODYGUARD_STEP'
   | 'WEREWOLF_STEP' 
+  | 'SORCERESS_STEP'
   | 'WITCH_STEP' 
   | 'NIGHT_RESOLVE';
 
@@ -60,12 +75,26 @@ export type DayStep =
 
 export interface NightActions {
   seerTargetId?: string;
+  seerInspectionResult?: {
+    targetId: string;
+    targetName: string;
+    perceivedRole: 'werewolf' | 'villager';
+  };
   doctorTargetId?: string;
-  werewolfVotes: Record<string, string>; // werewolfPlayerId -> victimPlayerId
-  werewolfTargetId?: string; // Consensus or majority victim
+  bodyguardTargetId?: string;
+  sorceressTargetId?: string;
+  sorceressInspectionResult?: {
+    targetId: string;
+    targetName: string;
+    isSeer: boolean;
+  };
+  cupidTargetIds?: [string, string];
   witchHealUsed?: boolean;
+  witchPoisonUsed?: boolean;
   witchHealTargetId?: string;
   witchPoisonTargetId?: string;
+  werewolfVotes: Record<string, string>; // werewolfPlayerId -> victimPlayerId
+  werewolfTargetId?: string; // Consensus or majority victim
 }
 
 export interface DayVotes {
@@ -107,6 +136,8 @@ export interface GameRoom {
   roleConfig: Record<RoleId, number>;
   nightActions: NightActions;
   dayVotes: DayVotes;
+  cupidLovers?: [string, string]; // IDs of 2 linked lovers
+  apprenticeSeerPromoted?: boolean;
   lastNightKilledId?: string;
   lastNightSaved: boolean;
   hunterRevengePlayerId?: string;
