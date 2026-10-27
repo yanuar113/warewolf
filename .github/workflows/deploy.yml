@@ -1,35 +1,85 @@
-name: Continuous Deployment (VPS aaPanel)
+
+name: Deploy Otomatis ke VPS
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
-# Mencegah eksekusi deployment ganda secara bersamaan
+permissions:
+  contents: read
+
 concurrency:
-  group: production-deployment
+  group: werewolf-deployment
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy Otomatis ke VPS
+    name: Deploy Werewolf
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Kode
-        uses: actions/checkout@v4
-
-      - name: Eksekusi Script Deploy di VPS via SSH
+      - name: Deploy melalui SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
+          port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script_stop_on_error: true
+          timeout: 30s
+          command_timeout: 30m
+          script_stop: true
+
           script: |
-            export TARGET_DIR="${{ secrets.TARGET_DIR || '/www/wwwroot/warewolf' }}"
-            echo "[GITHUB ACTIONS] Memulai deployment di VPS pada direktori $TARGET_DIR..."
-            cd "$TARGET_DIR"
-            chmod +x deploy.sh
-            ./deploy.sh
+            set -eu
+
+            cd /www/wwwroot/warewolf
+
+            echo "=== Memeriksa kondisi repository ==="
+
+            if [ -n "$(git status --porcelain)" ]; then
+              echo "ERROR: Ada perubahan lokal di VPS."
+              echo "Simpan perubahan yang diperlukan ke GitHub terlebih dahulu."
+              exit 1
+            fi
+
+            echo "=== Mengambil update GitHub ==="
+
+            git fetch origin main
+            git merge --ff-only origin/main
+
+            echo "=== Memastikan port Docker ==="
+
+            docker compose config --format json | python3 -c '
+            import json, sys
+            cfg = json.load(sys.stdin)
+            ports = [
+                p
+                for service in cfg.get("services", {}).values()
+                for p in service.get("ports", [])
+            ]
+            valid = any(
+                str(p.get("published")) == "3010"
+                and str(p.get("target")) == "3000"
+                for p in ports
+            )
+            sys.exit(0 if valid else 1)
+            ' || {
+              echo "ERROR: Port 3010 ke 3000 belum dikonfigurasi."
+              exit 1
+            }
+
+            echo "=== Build Docker ==="
+
+            docker compose build
+
+            echo "=== Menjalankan versi terbaru ==="
+
+            docker compose up -d --remove-orphans
+
+            echo "=== Status container ==="
+
+            docker compose ps
+
+            echo "=== Deployment selesai ==="
