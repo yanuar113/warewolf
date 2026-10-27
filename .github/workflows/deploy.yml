@@ -1,3 +1,4 @@
+
 name: Deploy Otomatis ke VPS
 
 on:
@@ -39,6 +40,7 @@ jobs:
 
             if [ -n "$(git status --porcelain)" ]; then
               echo "ERROR: Ada perubahan lokal yang belum disimpan."
+              echo "Deployment dibatalkan agar perubahan lokal tidak tertimpa."
               exit 1
             fi
 
@@ -47,7 +49,7 @@ jobs:
             git fetch origin main
             git merge --ff-only origin/main
 
-            echo "=== Memastikan port Docker ==="
+            echo "=== Memeriksa konfigurasi port Docker ==="
 
             if ! docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); p=[p for s in c.get("services",{}).values() for p in s.get("ports",[])]; sys.exit(0 if any(str(x.get("published"))=="3010" and str(x.get("target"))=="3000" for x in p) else 1)'; then
               echo "ERROR: Mapping port 3010 ke 3000 tidak ditemukan."
@@ -59,11 +61,11 @@ jobs:
 
             docker compose build
 
-            echo "=== Menjalankan container ==="
+            echo "=== Menjalankan container terbaru ==="
 
             docker compose up -d --remove-orphans
 
-            echo "=== Memeriksa status aplikasi ==="
+            echo "=== Memeriksa status container ==="
 
             docker compose ps
 
@@ -73,6 +75,31 @@ jobs:
               exit 1
             fi
 
+            echo "=== HTTP Health Check ==="
+
+            HEALTH_OK=0
+
+            for attempt in $(seq 1 12); do
+              if curl -fsS http://127.0.0.1:3010/ -o /dev/null; then
+                echo "[OK] Aplikasi merespons HTTP."
+                HEALTH_OK=1
+                break
+              fi
+
+              echo "[INFO] Menunggu aplikasi siap ($attempt/12)..."
+              sleep 5
+            done
+
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              echo "[ERROR] HTTP Health Check gagal."
+              echo "=== Status container ==="
+              docker compose ps
+              echo "=== Log aplikasi ==="
+              docker compose logs --tail=100
+              exit 1
+            fi
+
             echo "=== Deployment berhasil ==="
             echo "Port VPS: 3010"
             echo "Port container: 3000"
+            echo "HTTP Health Check: OK"
