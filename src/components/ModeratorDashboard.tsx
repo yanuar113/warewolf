@@ -159,26 +159,6 @@ export function ModeratorDashboard({
               ))}
             </select>
           </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {onOpenHistory && (
-              <button
-                onClick={onOpenHistory}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 text-slate-200 rounded-lg transition-colors min-h-[38px]"
-              >
-                <History className="w-3.5 h-3.5 text-slate-400" />
-                <span>Riwayat ({room.deathHistory?.length || 0})</span>
-              </button>
-            )}
-
-            <button
-              onClick={onOpenRoleReveal}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 text-slate-200 rounded-lg transition-colors min-h-[38px]"
-            >
-              <Award className="w-3.5 h-3.5" />
-              <span>Role Reveal</span>
-            </button>
-          </div>
         </div>
       </div>
 

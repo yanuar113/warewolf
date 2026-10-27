@@ -199,9 +199,66 @@ function cleanupInactiveRooms(): number {
   }
   if (cleanedCount > 0) {
     console.log(`[STORAGE-CLEANUP] Otomatis menghapus ${cleanedCount} room/sesi lama yang ditinggalkan demi efisiensi server.`);
+    saveRoomsToDisk();
   }
   return cleanedCount;
 }
+
+// ---------------- ROOM PERSISTENCE ENGINE ----------------
+const ROOMS_CACHE_FILE = path.join(uploadsPath, 'rooms_store.json');
+
+function saveRoomsToDisk() {
+  try {
+    const data: Record<string, GameRoom> = {};
+    for (const [code, r] of rooms.entries()) {
+      data[code] = r;
+    }
+    fs.writeFileSync(ROOMS_CACHE_FILE, JSON.stringify(data), 'utf8');
+  } catch (err) {
+    // Ignore cache write errors
+  }
+}
+
+function loadRoomsFromDisk() {
+  try {
+    if (fs.existsSync(ROOMS_CACHE_FILE)) {
+      const raw = fs.readFileSync(ROOMS_CACHE_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      for (const [code, r] of Object.entries(data)) {
+        if (!isRoomExpired(r as GameRoom)) {
+          rooms.set(code.toUpperCase(), r as GameRoom);
+        }
+      }
+      if (rooms.size > 0) {
+        console.log(`[STORAGE-CACHE] Berhasil memulihkan ${rooms.size} room aktif dari penyimpanan lokal.`);
+      }
+    }
+  } catch (err) {
+    // Ignore cache load errors
+  }
+}
+
+let saveRoomsTimer: NodeJS.Timeout | null = null;
+function scheduleSaveRooms() {
+  if (saveRoomsTimer) return;
+  saveRoomsTimer = setTimeout(() => {
+    saveRoomsTimer = null;
+    saveRoomsToDisk();
+  }, 500);
+}
+
+// Pulihkan room aktif saat server berjalan
+loadRoomsFromDisk();
+
+// Middleware auto-save setiap mutasi API room
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    if (req.method !== 'GET' && req.path.startsWith('/api/rooms')) {
+      scheduleSaveRooms();
+    }
+  });
+  next();
+});
 
 // Jalankan pembersihan otomatis berkala setiap 5 menit
 setInterval(cleanupInactiveRooms, 5 * 60 * 1000);
@@ -242,11 +299,12 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
   // Regular player view
   const myPlayer = room.players.find(p => p.id === requesterId);
 
-  // Pasangan Cupid info
+  // Pasangan Cupid info: hanya untuk kedua pasangan yang bersangkutan dan Cupid
   let partnerId: string | undefined;
   let partnerPlayer: Player | undefined;
-  if (room.cupidLovers && requesterId && room.cupidLovers.includes(requesterId)) {
-    partnerId = room.cupidLovers.find(id => id !== requesterId);
+  const isLover = !!(room.cupidLovers && requesterId && room.cupidLovers.includes(requesterId));
+  if (isLover) {
+    partnerId = room.cupidLovers?.find(id => id !== requesterId);
     partnerPlayer = room.players.find(p => p.id === partnerId);
   }
 
@@ -261,15 +319,33 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
       playerCopy.role = undefined;
     }
 
-    // Pasangan kekasih Cupid mengetahui status pasangannya
+    // Informasi Pasangan Cupid: Hanya diketahui oleh kedua pasangan dan Cupid sendiri
     if (room.cupidLovers && room.cupidLovers.includes(p.id)) {
-      if (isMe && partnerPlayer) {
+      if (isLover) {
+        if (isMe && partnerPlayer) {
+          playerCopy.isLover = true;
+          playerCopy.loverPartnerId = partnerPlayer.id;
+          playerCopy.loverPartnerName = partnerPlayer.name;
+        } else if (p.id === partnerId) {
+          playerCopy.isLover = true;
+          playerCopy.loverPartnerId = myPlayer?.id;
+          playerCopy.loverPartnerName = myPlayer?.name;
+        } else {
+          playerCopy.isLover = undefined;
+          playerCopy.loverPartnerId = undefined;
+          playerCopy.loverPartnerName = undefined;
+        }
+      } else if (myPlayer?.role === 'cupid') {
         playerCopy.isLover = true;
-        playerCopy.loverPartnerId = partnerPlayer.id;
-        playerCopy.loverPartnerName = partnerPlayer.name;
-      } else if (p.id === partnerId) {
-        playerCopy.isLover = true;
+      } else {
+        playerCopy.isLover = undefined;
+        playerCopy.loverPartnerId = undefined;
+        playerCopy.loverPartnerName = undefined;
       }
+    } else {
+      playerCopy.isLover = undefined;
+      playerCopy.loverPartnerId = undefined;
+      playerCopy.loverPartnerName = undefined;
     }
 
     return playerCopy;
@@ -311,10 +387,12 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
   } else if (myPlayer?.role === 'witch') {
     sanitized.nightActions = {
       werewolfVotes: {},
+      werewolfTargetId: room.nightActions.werewolfTargetId,
       witchHealTargetId: room.nightActions.witchHealTargetId,
       witchPoisonTargetId: room.nightActions.witchPoisonTargetId,
       witchHealUsed: room.nightActions.witchHealUsed,
       witchPoisonUsed: room.nightActions.witchPoisonUsed,
+      witchSkipped: room.nightActions.witchSkipped,
     };
   } else {
     sanitized.nightActions = {
@@ -329,14 +407,40 @@ function sanitizeRoomForPlayer(room: GameRoom, requesterId?: string): GameRoom {
     sanitized.cupidLovers = undefined;
   }
 
-  // 4. Sanitize Secret Logs
-  sanitized.logs = room.logs.filter(log => !log.isSecret);
+  // 4. Sanitize Secret Logs & Anonymous Death Logs for Regular Players
+  sanitized.logs = room.logs
+    .filter(log => !log.isSecret)
+    .map(log => {
+      const logCopy = { ...log };
+      if (
+        logCopy.title.includes('Hasil Malam') ||
+        logCopy.title.includes('Korban Racun') ||
+        logCopy.title.includes('Aksi Hunter') ||
+        logCopy.title.includes('Hasil Voting') ||
+        logCopy.title.includes('Tragedi') ||
+        logCopy.title.includes('Eliminasi Pemain')
+      ) {
+        // If log description contains elimination details, preserve player name but anonymize killer role/reason
+        const match = logCopy.description.match(/([A-Za-z0-9_\-\s]+)\s+(?:tereliminasi|gugur|meracuni)/i);
+        if (match && match[1] && !match[1].toLowerCase().includes('tidak ada')) {
+          const playerName = match[1].trim();
+          logCopy.description = `Warga "${playerName}" ditemukan tidak bernyawa.`;
+        }
+      }
+      return logCopy;
+    });
 
-  // 5. Sanitize Death History Roles (if game not over)
-  sanitized.deathHistory = room.deathHistory.map(dh => ({
-    ...dh,
-    playerRole: undefined,
-  }));
+  // 5. Sanitize Death History Roles & Reasons for Regular Players (if game not over)
+  sanitized.deathHistory = room.deathHistory.map(dh => {
+    if (dh.saved || !dh.playerId || dh.playerName.includes('Tidak ada')) {
+      return { ...dh, playerRole: undefined };
+    }
+    return {
+      ...dh,
+      playerRole: undefined,
+      reason: 'Ditemukan tidak bernyawa',
+    };
+  });
 
   return sanitized;
 }
@@ -419,13 +523,13 @@ app.get('/api/rooms/:code', (req, res) => {
   const code = req.params.code.toUpperCase();
   const room = rooms.get(code);
   if (!room) {
-    return res.status(404).json({ error: 'Kode room tidak ditemukan' });
+    return res.status(404).json({ error: 'Ruang permainan tidak ditemukan atau telah dihapus karena sudah lama tidak ada aktivitas.' });
   }
 
   // Bersihkan otomatis jika sesi sudah kedaluwarsa karena tidak aktif
   if (isRoomExpired(room)) {
     rooms.delete(code);
-    return res.status(404).json({ error: 'Sesi room ini telah berakhir dan dibersihkan karena sudah lama tidak aktif.' });
+    return res.status(404).json({ error: 'Ruang permainan telah dihapus karena sudah lama tidak ada aktivitas atau telah dibubarkan oleh Moderator.' });
   }
 
   // Refresh timestamp agar room yang sedang dibuka pemain tidak pernah mati
@@ -443,13 +547,13 @@ app.post('/api/rooms/:code/join', (req, res) => {
   const room = rooms.get(code);
 
   if (!room) {
-    return res.status(404).json({ error: 'Room tidak ditemukan' });
+    return res.status(404).json({ error: 'Ruang permainan tidak ditemukan atau telah dihapus karena sudah lama tidak ada aktivitas.' });
   }
 
   // Bersihkan otomatis jika sesi sudah kedaluwarsa karena tidak aktif
   if (isRoomExpired(room)) {
     rooms.delete(code);
-    return res.status(404).json({ error: 'Sesi room ini telah berakhir dan dibersihkan karena sudah lama tidak aktif.' });
+    return res.status(404).json({ error: 'Ruang permainan telah dihapus karena sudah lama tidak ada aktivitas atau telah dibubarkan oleh Moderator.' });
   }
 
   const trimmedName = typeof playerName === 'string' ? playerName.trim() : '';
@@ -607,6 +711,11 @@ app.post('/api/rooms/:code/start-game', (req, res) => {
     }
     p.eliminatedInPhase = undefined;
     p.eliminatedReason = undefined;
+    p.isLover = undefined;
+    p.loverPartnerId = undefined;
+    p.loverPartnerName = undefined;
+    p.foolLostVote = undefined;
+    p.foolPardoned = undefined;
   });
 
   room.stage = 'NIGHT';
@@ -618,6 +727,9 @@ app.post('/api/rooms/:code/start-game', (req, res) => {
   room.lastNightSaved = false;
   room.winner = undefined;
   room.deathHistory = [];
+  room.cupidLovers = undefined;
+  room.apprenticeSeerPromoted = false;
+  room.hunterRevengePlayerId = undefined;
 
   room.logs.push({
     id: createLogId(),
@@ -899,6 +1011,20 @@ app.post('/api/rooms/:code/action', (req, res) => {
       phase: 'NIGHT',
       title: 'Ramuan Racun Witch',
       description: `Witch (${player.name}) meracuni ${targetPlayer.name}.`,
+      isSecret: true,
+    });
+  } else if (actionType === 'witch_skip') {
+    if (player.role !== 'witch') {
+      return res.status(403).json({ error: 'Hanya Witch yang dapat memilih lewati aksi.' });
+    }
+    room.nightActions.witchSkipped = true;
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase: 'NIGHT',
+      title: 'Aksi Witch',
+      description: `Witch (${player.name}) memilih tidak menggunakan ramuan malam ini.`,
       isSecret: true,
     });
   }
@@ -1364,12 +1490,20 @@ app.post('/api/rooms/:code/reset-game', (req, res) => {
   room.lastNightKilledId = undefined;
   room.lastNightSaved = false;
   room.deathHistory = [];
+  room.cupidLovers = undefined;
+  room.apprenticeSeerPromoted = false;
+  room.hunterRevengePlayerId = undefined;
 
   room.players.forEach(p => {
     p.status = 'alive';
     p.role = undefined;
     p.eliminatedInPhase = undefined;
     p.eliminatedReason = undefined;
+    p.isLover = undefined;
+    p.loverPartnerId = undefined;
+    p.loverPartnerName = undefined;
+    p.foolLostVote = undefined;
+    p.foolPardoned = undefined;
   });
 
   room.logs.push({
@@ -1389,7 +1523,7 @@ app.post('/api/rooms/:code/reset-game', (req, res) => {
 app.delete('/api/rooms/:code', (req, res) => {
   const code = req.params.code.toUpperCase();
   const room = rooms.get(code);
-  if (!room) return res.status(404).json({ error: 'Room tidak ditemukan atau sudah dibersihkan' });
+  if (!room) return res.status(404).json({ error: 'Ruang permainan tidak ditemukan atau sudah dihapus dari sistem.' });
 
   const requesterId = getRequesterId(req);
   if (!requesterId || (requesterId !== room.moderatorId && requesterId !== room.hostId)) {

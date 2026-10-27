@@ -153,7 +153,7 @@ export function PhaseTransitionOverlay({
                   Kabar Duka Pagi Ini
                 </span>
                 <p className="text-xs sm:text-sm text-slate-200 font-medium leading-snug">
-                  Warga desa mendapati <strong className="text-white font-bold">{killedPlayerName}</strong> telah gugur diserang Werewolf.
+                  Warga <strong className="text-white font-bold">"{killedPlayerName}"</strong> ditemukan tidak bernyawa.
                 </p>
               </div>
             </div>

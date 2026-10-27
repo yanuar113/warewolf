@@ -23,6 +23,7 @@ interface PendingAction {
     | 'cupid_link' 
     | 'witch_heal' 
     | 'witch_poison' 
+    | 'witch_skip'
     | 'hunter_shoot' 
     | 'day_lynch';
   targetId?: string;
@@ -134,6 +135,8 @@ export function PlayerActionPanel({
         await onPerformAction('witch_heal', pendingAction.targetId);
       } else if (pendingAction.actionType === 'witch_poison') {
         await onPerformAction('witch_poison', pendingAction.targetId);
+      } else if (pendingAction.actionType === 'witch_skip') {
+        await onPerformAction('witch_skip');
       } else if (pendingAction.actionType === 'day_lynch') {
         await onVoteLynch(pendingAction.targetId || 'skip');
       } else if (pendingAction.actionType === 'hunter_shoot' && onHunterShoot && pendingAction.targetId) {
@@ -385,13 +388,34 @@ export function PlayerActionPanel({
 
   // CUPID LOVERS STATUS BANNER (shown to lovers)
   const renderLoversBanner = () => {
-    if (currentPlayer.isLover && currentPlayer.loverPartnerName) {
+    if (currentPlayer.isLover) {
+      const partnerName = currentPlayer.loverPartnerName || (
+        room.cupidLovers && room.cupidLovers.length === 2
+          ? room.players.find(p => p.id !== currentPlayer.id && room.cupidLovers?.includes(p.id))?.name
+          : undefined
+      );
+
       return (
-        <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl flex items-center gap-2.5 text-xs text-rose-200 shadow-sm mb-3">
-          <Heart className="w-4 h-4 text-rose-400 fill-rose-400 shrink-0" />
-          <div className="leading-snug">
-            <span className="font-bold block text-rose-100">Ikatan Asmara Cupid</span>
-            Pasangan takdir Anda adalah <strong className="text-white underline">{currentPlayer.loverPartnerName}</strong>. Jika salah satu gugur, pasangannya ikut gugur!
+        <div className="p-3.5 bg-gradient-to-r from-rose-950/90 via-pink-950/80 to-slate-900 border border-rose-500/70 rounded-2xl flex items-start gap-3 text-xs text-rose-200 shadow-xl mb-3 animate-in fade-in">
+          <div className="w-8 h-8 rounded-xl bg-rose-900/80 border border-rose-500 flex items-center justify-center shrink-0 text-rose-300 shadow-inner mt-0.5">
+            <Heart className="w-4.5 h-4.5 fill-rose-500 text-rose-300 animate-pulse" />
+          </div>
+          <div className="leading-snug flex-1">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="font-bold text-rose-100">Ikatan Asmara Cupid</span>
+              <span className="text-[9px] uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-full font-bold">
+                Pasangan Kekasih
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-200 mt-1">
+              {partnerName ? (
+                <>
+                  Pasangan takdir Anda adalah <strong className="text-white underline font-bold">{partnerName}</strong>. Takdir cinta kalian terikat — jika salah satu gugur, pasangannya akan ikut gugur karena patah hati!
+                </>
+              ) : (
+                <>Anda telah terikat dalam takdir asmara sehidup semati oleh panah Cupid!</>
+              )}
+            </p>
           </div>
         </div>
       );
@@ -907,13 +931,25 @@ export function PlayerActionPanel({
           </div>
 
           {!isNightOne || isCupidLocked ? (
-            <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 text-center">
-              <Sparkles className="w-5 h-5 text-amber-400 mx-auto" />
-              <div className="text-xs font-semibold text-slate-200">
+            <div className="p-4 bg-slate-950 border border-rose-900/60 rounded-xl space-y-3 text-center">
+              <Heart className="w-6 h-6 fill-rose-500 text-rose-400 mx-auto animate-pulse" />
+              <div className="text-sm font-bold text-white">
                 Takdir Asmara Telah Terjalin
               </div>
+              {room.cupidLovers && room.cupidLovers.length === 2 && (
+                <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-xl text-xs text-rose-200 text-center">
+                  <span className="text-[10px] text-rose-300/80 block uppercase font-bold tracking-wider mb-1">
+                    Pasangan yang Anda Ikat:
+                  </span>
+                  <span className="font-extrabold text-sm text-white flex items-center justify-center gap-1.5 flex-wrap">
+                    <span>{room.players.find(p => p.id === room.cupidLovers?.[0])?.name || 'Pemain 1'}</span>
+                    <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-400 inline shrink-0" />
+                    <span>{room.players.find(p => p.id === room.cupidLovers?.[1])?.name || 'Pemain 2'}</span>
+                  </span>
+                </div>
+              )}
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Kemampuan Cupid hanya aktif di malam pertama. Pasangan asmara telah ditentukan dan terikat takdir hingga akhir permainan.
+                Kemampuan Cupid hanya aktif di malam pertama. Kedua pemain di atas telah terikat takdir cinta sehidup semati.
               </p>
             </div>
           ) : (
@@ -993,6 +1029,13 @@ export function PlayerActionPanel({
     if (currentPlayer.role === 'witch') {
       const healUsed = !!room.nightActions.witchHealUsed;
       const poisonUsed = !!room.nightActions.witchPoisonUsed;
+      const witchHealedId = room.nightActions.witchHealTargetId;
+      const witchPoisonedId = room.nightActions.witchPoisonTargetId;
+      const witchSkipped = !!room.nightActions.witchSkipped;
+      const werewolfVictimId = room.nightActions.werewolfTargetId;
+      const werewolfVictimPlayer = room.players.find(p => p.id === werewolfVictimId);
+
+      const hasChosenTonight = !!(witchHealedId || witchPoisonedId || witchSkipped);
 
       return (
         <div className="w-full max-w-sm mx-auto p-5 bg-slate-900 border border-indigo-900/60 rounded-2xl shadow-lg space-y-4">
@@ -1022,28 +1065,43 @@ export function PlayerActionPanel({
             </div>
           )}
 
-          {/* Heal action */}
-          {!healUsed && room.nightActions.werewolfTargetId && (
-            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-              <span className="text-[11px] font-semibold text-emerald-300">Gunakan Ramuan Penyelamat:</span>
+          {/* Status jika pilihan malam ini sudah terkonfirmasi */}
+          {hasChosenTonight && (
+            <div className="p-3 bg-indigo-950/50 border border-indigo-800/80 rounded-xl space-y-1 text-center">
+              <span className="text-xs font-semibold text-indigo-300 block">
+                Aksi Malam Terkonfirmasi
+              </span>
               <p className="text-xs text-slate-300">
-                Pemain target Werewolf malam ini dapat diselamatkan:
+                {witchHealedId
+                  ? `Anda menggunakan Ramuan Penyelamat untuk menyembuhkan ${room.players.find(p => p.id === witchHealedId)?.name || 'target'}.`
+                  : witchPoisonedId
+                  ? `Anda menggunakan Ramuan Racun pada ${room.players.find(p => p.id === witchPoisonedId)?.name || 'target'}.`
+                  : 'Anda memilih tidak menggunakan ramuan apapun malam ini.'}
+              </p>
+            </div>
+          )}
+
+          {/* Heal action */}
+          {!healUsed && werewolfVictimId && (
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+              <span className="text-[11px] font-semibold text-emerald-300">Target Werewolf Malam Ini:</span>
+              <p className="text-xs text-slate-200">
+                Korban penyerangan: <strong className="text-white font-bold">{werewolfVictimPlayer?.name || 'Seorang warga'}</strong>
               </p>
               <button
                 onClick={() => {
-                  const victim = room.players.find(p => p.id === room.nightActions.werewolfTargetId);
                   setPendingAction({
                     actionType: 'witch_heal',
-                    targetId: room.nightActions.werewolfTargetId,
-                    targetName: victim?.name || 'Korban Werewolf',
+                    targetId: werewolfVictimId,
+                    targetName: werewolfVictimPlayer?.name || 'Korban Werewolf',
                     roleLabel: 'Witch',
-                    actionDescription: 'Menyelamatkan pemain ini dari serangan Werewolf malam ini.',
+                    actionDescription: `Menyelamatkan ${werewolfVictimPlayer?.name || 'korban'} dari serangan Werewolf malam ini.`,
                     colorScheme: 'emerald',
                   });
                 }}
-                className="w-full min-h-[40px] py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold"
+                className="w-full min-h-[40px] py-2 px-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all"
               >
-                Selamatkan Korban
+                Gunakan Ramuan Penyelamat
               </button>
             </div>
           )}
@@ -1062,19 +1120,37 @@ export function PlayerActionPanel({
                         targetId: target.id,
                         targetName: target.name,
                         roleLabel: 'Witch',
-                        actionDescription: 'Meracuni dan mengeliminasi pemain ini malam ini.',
+                        actionDescription: `Meracuni dan mengeliminasi ${target.name} malam ini.`,
                         colorScheme: 'rose',
                       });
                     }}
-                    className="w-full py-2 px-3 text-left rounded-lg text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between"
+                    className="w-full py-2 px-3 text-left rounded-lg text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all"
                   >
                     <span>{target.name}</span>
-                    <span className="text-[10px] text-rose-400">Racuni</span>
+                    <span className="text-[10px] font-medium text-rose-400">Racuni</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
+
+          {/* Option to Skip / Pass night action */}
+          <div className="pt-1">
+            <button
+              onClick={() => {
+                setPendingAction({
+                  actionType: 'witch_skip',
+                  targetName: 'Lewati Aksi Malam Ini',
+                  roleLabel: 'Witch',
+                  actionDescription: 'Anda memilih untuk simpan ramuan dan tidak menggunakan aksi apapun malam ini.',
+                  colorScheme: 'indigo',
+                });
+              }}
+              className="w-full min-h-[40px] py-2 px-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-medium transition-all"
+            >
+              Lewati Aksi / Tidak Menggunakan Ramuan
+            </button>
+          </div>
 
           {renderConfirmationModal()}
         </div>

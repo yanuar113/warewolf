@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Volume2, VolumeX, BookOpen, Crown, Copy, Check, History, LogOut, Share2 } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Crown, Copy, Check, History, LogOut, Share2, Trash2, Award } from 'lucide-react';
 import { sounds } from '../utils/audio';
 import { copyToClipboard } from '../utils/clipboard';
 
@@ -13,6 +13,8 @@ interface Props {
   historyCount?: number;
   onClaimModerator?: () => void;
   onExitRoom?: () => void;
+  onDeleteRoom?: () => void;
+  onOpenRoleReveal?: () => void;
   stage?: string;
 }
 
@@ -26,6 +28,8 @@ export function TopBar({
   historyCount = 0,
   onClaimModerator,
   onExitRoom,
+  onDeleteRoom,
+  onOpenRoleReveal,
   stage,
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -95,6 +99,23 @@ export function TopBar({
               </button>
             </div>
           )}
+
+          {roomCode && isModerator && (
+            <button
+              onClick={() => onTabChange(activeTab === 'moderator' ? 'player' : 'moderator')}
+              className={`md:hidden px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all shrink-0 shadow-sm ${
+                activeTab === 'moderator'
+                  ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold border border-amber-400 ring-2 ring-amber-400/20'
+              }`}
+              title={activeTab === 'moderator' ? 'Buka Tampilan Kartu Peran' : 'Kembali ke Panel Moderator'}
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span className="text-[11px] whitespace-nowrap">
+                {activeTab === 'moderator' ? 'Kartu' : 'Ke Moderator'}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Center: Desktop Navigation Tabs (Hidden on small mobile screens, handled by MobileBottomNav) */}
@@ -147,26 +168,51 @@ export function TopBar({
               <BookOpen className="w-3.5 h-3.5 text-slate-400" />
               <span>Aturan</span>
             </button>
+
+            {onOpenRoleReveal && (
+              <button
+                onClick={onOpenRoleReveal}
+                title="Buka Kartu & Status Peran"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors whitespace-nowrap shrink-0"
+              >
+                <Award className="w-3.5 h-3.5 text-amber-400" />
+                <span>Role Reveal</span>
+              </button>
+            )}
           </nav>
         )}
 
-        {/* Right: Sound & Exit Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right: Sound, Hapus Room & Exit Actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={toggleAudio}
             title={audioEnabled ? 'Nonaktifkan Suara' : 'Aktifkan Suara'}
-            className="p-2 h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors active:scale-95 shrink-0"
+            className="p-1.5 sm:p-2 h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 transition-colors active:scale-95 shrink-0"
           >
             {audioEnabled ? <Volume2 className="w-4 h-4 text-slate-300" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
           </button>
 
+          {/* Tombol Hapus Room (Pindah ke Navbar Atas, khusus Moderator) */}
+          {roomCode && isModerator && onDeleteRoom && (
+            <button
+              onClick={onDeleteRoom}
+              title="Hapus dan Bubarkan Room dari Server"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 sm:h-9 text-xs font-semibold bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800/80 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 cursor-pointer whitespace-nowrap"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">Hapus Room</span>
+              <span className="sm:hidden">Hapus</span>
+            </button>
+          )}
+
+          {/* Keluar Room */}
           {roomCode && onExitRoom && (
             <button
               onClick={onExitRoom}
               title="Keluar dari Ruang Permainan"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 h-8 sm:h-9 text-xs font-semibold bg-rose-950/80 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-800/80 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 sm:h-9 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 cursor-pointer whitespace-nowrap"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <LogOut className="w-3.5 h-3.5 text-slate-400" />
               <span className="hidden sm:inline">Keluar Ruang</span>
               <span className="sm:hidden">Keluar</span>
             </button>

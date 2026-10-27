@@ -23,6 +23,7 @@ import { sounds } from './utils/audio';
 export default function App() {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
+  const [inspectedPlayerId, setInspectedPlayerId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'player' | 'moderator'>('player');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,8 +100,14 @@ export default function App() {
           localStorage.removeItem('werewolf_room_code');
           localStorage.removeItem('werewolf_player_id');
           const msg = err instanceof Error ? err.message : '';
-          if (msg.includes('dibersihkan') || msg.includes('berakhir') || msg.includes('tidak ditemukan')) {
-            setError('Sesi room sebelumnya telah berakhir atau dibersihkan otomatis dari server.');
+          if (
+            msg.includes('dibersihkan') || 
+            msg.includes('berakhir') || 
+            msg.includes('tidak ditemukan') ||
+            msg.includes('dihapus') ||
+            msg.includes('aktivitas')
+          ) {
+            setError('Ruang permainan telah dihapus karena sudah lama tidak ada aktivitas atau telah dibubarkan oleh Moderator.');
           }
         })
         .finally(() => setLoading(false));
@@ -129,6 +136,8 @@ export default function App() {
         msg.includes('dibersihkan') || 
         msg.includes('berakhir') || 
         msg.includes('tidak ditemukan') ||
+        msg.includes('dihapus') ||
+        msg.includes('aktivitas') ||
         msg.includes('404')
       ) {
         sessionStorage.removeItem('werewolf_room_code');
@@ -137,7 +146,7 @@ export default function App() {
         localStorage.removeItem('werewolf_player_id');
         setRoom(null);
         setCurrentPlayerId('');
-        setError('Sesi room telah selesai atau dibersihkan oleh sistem/moderator demi efisiensi.');
+        setError('Ruang permainan telah dihapus karena sudah lama tidak ada aktivitas atau telah dibubarkan oleh Moderator.');
       }
     }
   }, []);
@@ -206,6 +215,7 @@ export default function App() {
   const myPlayer = room?.players.find(p => p.id === myPlayerId);
   const currentPlayer = room?.players.find(p => p.id === currentPlayerId) || myPlayer || room?.players[0];
   const isModerator = !!(room?.moderatorId && (myPlayerId === room.moderatorId || currentPlayer?.id === room.moderatorId || myPlayer?.isModerator || currentPlayer?.isModerator));
+  const displayedPlayer = (inspectedPlayerId ? room?.players.find(p => p.id === inspectedPlayerId) : null) || currentPlayer;
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,6 +364,9 @@ export default function App() {
     if (!room) return;
     const updated = await api.startGame(room.code);
     setRoom(updated);
+    if (isModerator) {
+      setActiveTab('moderator');
+    }
   };
 
   const handleNightStep = async (step: NightStep) => {
@@ -363,8 +376,12 @@ export default function App() {
   };
 
   const handlePerformAction = async (actionType: string, targetId?: string, targetIds?: string[]) => {
-    if (!room || !currentPlayerId) return;
-    const updated = await api.submitPlayerAction(room.code, currentPlayerId, actionType, targetId, targetIds);
+    if (!room) return;
+    const actorId = displayedPlayer?.id || currentPlayerId || (typeof window !== 'undefined' ? (sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id') || '') : '');
+    if (!actorId) {
+      throw new Error('Identitas pemain tidak ditemukan. Silakan muat ulang halaman.');
+    }
+    const updated = await api.submitPlayerAction(room.code, actorId, actionType, targetId, targetIds);
     setRoom(updated);
   };
 
@@ -376,7 +393,8 @@ export default function App() {
 
   const handleHunterShoot = async (targetId: string) => {
     if (!room) return;
-    const updated = await api.hunterRevenge(room.code, targetId);
+    const actorId = displayedPlayer?.id || currentPlayerId || (typeof window !== 'undefined' ? (sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id') || '') : '');
+    const updated = await api.hunterRevenge(room.code, targetId, actorId || undefined);
     setRoom(updated);
   };
 
@@ -387,8 +405,12 @@ export default function App() {
   };
 
   const handleVoteLynch = async (targetId: string) => {
-    if (!room || !currentPlayerId) return;
-    const updated = await api.submitLynchVote(room.code, currentPlayerId, targetId);
+    if (!room) return;
+    const actorId = displayedPlayer?.id || currentPlayerId || (typeof window !== 'undefined' ? (sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id') || '') : '');
+    if (!actorId) {
+      throw new Error('Identitas pemain tidak ditemukan. Silakan muat ulang halaman.');
+    }
+    const updated = await api.submitLynchVote(room.code, actorId, targetId);
     setRoom(updated);
   };
 
@@ -439,19 +461,21 @@ export default function App() {
         historyCount={room?.deathHistory?.length || 0}
         onClaimModerator={handleClaimModerator}
         onExitRoom={() => setIsExitConfirmOpen(true)}
+        onDeleteRoom={() => setIsDeleteConfirmOpen(true)}
+        onOpenRoleReveal={() => setIsRoleRevealOpen(true)}
         stage={room?.stage}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-6 pb-24 md:pb-8 flex flex-col items-center justify-start">
         {error && (
-          <div className="mb-6 p-4 bg-slate-900 border border-rose-800 text-rose-300 rounded-2xl flex items-center justify-between text-xs sm:text-sm">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{error}</span>
+          <div className="mb-6 w-full max-w-2xl p-4 bg-slate-900/95 border border-amber-500/40 text-amber-200 rounded-2xl flex items-center justify-between text-xs sm:text-sm shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="leading-relaxed font-medium">{error}</span>
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-xs text-slate-400 hover:text-white underline ml-2"
+              className="px-3 py-1 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors ml-3 shrink-0 cursor-pointer"
             >
               Tutup
             </button>
@@ -648,12 +672,46 @@ export default function App() {
                 
                 {activeTab === 'player' ? (
                   <div className="space-y-6 max-w-sm sm:max-w-md mx-auto w-full flex flex-col items-center justify-start">
-                    {currentPlayer && <PlayerCard player={currentPlayer} />}
+                    {/* Floating quick-return banner for Moderator */}
+                    {isModerator && (
+                      <div className="w-full p-3.5 bg-gradient-to-r from-indigo-950 via-slate-900 to-amber-950/60 border border-amber-500/60 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg">
+                        <div className="flex items-center gap-2 text-slate-200">
+                          <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>
+                            {inspectedPlayerId
+                              ? `Inspeksi: ${displayedPlayer?.name}`
+                              : 'Anda adalah Moderator (mode Kartu Peran)'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInspectedPlayerId('');
+                            setActiveTab('moderator');
+                          }}
+                          className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                        >
+                          <Crown className="w-3.5 h-3.5 fill-slate-950" />
+                          <span>Panel Moderator</span>
+                        </button>
+                      </div>
+                    )}
 
-                    {currentPlayer && (
+                    {displayedPlayer && (
+                      <PlayerCard
+                        player={displayedPlayer}
+                        isModerator={isModerator && !inspectedPlayerId}
+                        onSwitchToModerator={() => {
+                          setInspectedPlayerId('');
+                          setActiveTab('moderator');
+                        }}
+                      />
+                    )}
+
+                    {displayedPlayer && (
                       <PlayerActionPanel
                         room={room}
-                        currentPlayer={currentPlayer}
+                        currentPlayer={displayedPlayer}
                         onPerformAction={handlePerformAction}
                         onVoteLynch={handleVoteLynch}
                         onHunterShoot={handleHunterShoot}
@@ -674,22 +732,27 @@ export default function App() {
                       </div>
                       {isModerator ? (
                         <div className="flex items-center gap-2 flex-wrap justify-end">
-                          {currentPlayerId !== room.moderatorId && (
-                            <button
-                              onClick={() => {
-                                setCurrentPlayerId(room.moderatorId);
-                              }}
-                              className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm"
-                            >
-                              <Crown className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Kembali ke Moderator</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInspectedPlayerId('');
+                              setActiveTab('moderator');
+                            }}
+                            className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
+                          >
+                            <Crown className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Kembali ke Moderator</span>
+                          </button>
 
                           <select
-                            value={currentPlayerId}
+                            value={inspectedPlayerId || currentPlayerId}
                             onChange={(e) => {
-                              setCurrentPlayerId(e.target.value);
+                              const val = e.target.value;
+                              if (val === room.moderatorId) {
+                                setInspectedPlayerId('');
+                              } else {
+                                setInspectedPlayerId(val);
+                              }
                             }}
                             className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none font-medium"
                           >
@@ -731,55 +794,18 @@ export default function App() {
               </div>
             )}
 
-            <footer className="mt-auto pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-              <div className="flex items-center gap-2">
-                <span>Room {room.code}</span>
-                <span aria-hidden="true">·</span>
-                <span>Pemain: {currentPlayer?.name || 'Anonim'}</span>
-                {isModerator && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="text-slate-300">Moderator</span>
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsHistoryOpen(true)}
-                  className="hover:text-slate-300 transition-colors"
-                >
-                  Riwayat ({room.deathHistory?.length || 0})
-                </button>
-                <span aria-hidden="true">·</span>
-                <button
-                  onClick={() => setIsRoleRevealOpen(true)}
-                  className="hover:text-slate-300 transition-colors"
-                >
-                  Role Reveal
-                </button>
-                {isModerator && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <button
-                      onClick={() => setIsDeleteConfirmOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800 text-rose-300 hover:text-white rounded-lg font-semibold transition-all shadow-sm active:scale-95 cursor-pointer text-xs"
-                      title="Hapus room dari server untuk menghemat memori dan penyimpanan"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Hapus Room</span>
-                    </button>
-                  </>
-                )}
-                <span aria-hidden="true">·</span>
-                <button
-                  onClick={() => setIsExitConfirmOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-950/90 hover:bg-rose-900 border border-rose-800 text-rose-300 hover:text-white rounded-lg font-semibold transition-all shadow-sm active:scale-95"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Keluar Room</span>
-                </button>
-              </div>
+            <footer className="mt-auto pt-6 border-t border-slate-900 flex items-center justify-center sm:justify-start gap-2 flex-wrap text-xs text-slate-500">
+              <span className="font-mono font-medium text-slate-400">Ruang #{room.code}</span>
+              <span aria-hidden="true">·</span>
+              <span>Fase: <strong className="text-slate-300">{room.stage === 'NIGHT' ? `Malam ke-${room.cycle}` : room.stage === 'DAY' ? `Siang ke-${room.cycle}` : 'Lobby'}</strong></span>
+              <span aria-hidden="true">·</span>
+              <span>Pemain: <strong className="text-slate-300">{currentPlayer?.name || 'Anonim'}</strong></span>
+              {isModerator && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/80 text-[10px] text-amber-300 font-semibold">Moderator</span>
+                </>
+              )}
             </footer>
           </div>
         )}
@@ -909,7 +935,6 @@ export default function App() {
         historyCount={room?.deathHistory?.length || 0}
         isModerator={isModerator}
         isInRoom={!!room}
-        onExitRoom={() => setIsExitConfirmOpen(true)}
       />
     </div>
   );

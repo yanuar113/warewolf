@@ -175,16 +175,6 @@ export function Lobby({
           >
             Lihat Ringkasan Aturan
           </button>
-
-          {(isHost || isModerator) && onDeleteRoom && (
-            <button
-              onClick={onDeleteRoom}
-              className="px-4 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-rose-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Bubarkan & Hapus Room</span>
-            </button>
-          )}
         </div>
 
         {/* Active Session Notice */}

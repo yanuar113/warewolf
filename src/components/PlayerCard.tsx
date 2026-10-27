@@ -6,9 +6,11 @@ import { sounds } from '../utils/audio';
 
 interface Props {
   player: Player;
+  onSwitchToModerator?: () => void;
+  isModerator?: boolean;
 }
 
-export function PlayerCard({ player }: Props) {
+export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) {
   const [isRevealed, setIsRevealed] = useState(false);
 
   const roleDef = player.role ? ROLE_DEFINITIONS[player.role] : null;
@@ -33,8 +35,20 @@ export function PlayerCard({ player }: Props) {
             Sebagai Moderator, Anda bertugas memandu alur malam, diskusi, dan voting. Anda <strong>tidak berpartisipasi sebagai pemain</strong> dan <strong>tidak mendapatkan kartu peran</strong>.
           </p>
         </div>
+
+        {onSwitchToModerator && (
+          <button
+            type="button"
+            onClick={onSwitchToModerator}
+            className="w-full min-h-[44px] py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:brightness-110 active:scale-95 text-slate-950 font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Crown className="w-4.5 h-4.5 text-slate-950 fill-slate-950" />
+            <span>Kembali ke Panel Moderator</span>
+          </button>
+        )}
+
         <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
-          Buka tab <strong>Panel Moderator</strong> di atas untuk memandu fase permainan secara real-time.
+          Gunakan tombol di atas atau tab <strong>Panel Moderator</strong> untuk memandu fase permainan secara real-time.
         </div>
       </div>
     );
@@ -42,8 +56,18 @@ export function PlayerCard({ player }: Props) {
 
   if (!roleDef) {
     return (
-      <div className="w-full max-w-sm mx-auto p-6 bg-slate-900 border border-slate-800 rounded-2xl text-center">
+      <div className="w-full max-w-sm mx-auto p-6 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-4">
         <p className="text-slate-400 text-sm">Menunggu pembagian peran dari moderator...</p>
+        {isModerator && onSwitchToModerator && (
+          <button
+            type="button"
+            onClick={onSwitchToModerator}
+            className="w-full min-h-[44px] py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Crown className="w-4 h-4 fill-slate-950" />
+            <span>Kembali ke Panel Moderator</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -53,6 +77,49 @@ export function PlayerCard({ player }: Props) {
 
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col items-center">
+      {/* Return to Moderator Quick Bar if currently inspecting another player */}
+      {isModerator && onSwitchToModerator && (
+        <button
+          type="button"
+          onClick={onSwitchToModerator}
+          className="w-full mb-3 py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded-xl text-amber-300 text-xs font-semibold flex items-center justify-between transition-colors shadow-sm cursor-pointer"
+        >
+          <span className="flex items-center gap-1.5">
+            <Crown className="w-3.5 h-3.5 text-amber-400" />
+            <span>Inspeksi: {player.name}</span>
+          </span>
+          <span className="text-[11px] underline font-bold text-amber-300">Kembali ke Moderator &rarr;</span>
+        </button>
+      )}
+
+      {/* Cupid Lover Notice Banner */}
+      {player.isLover && (
+        <div className="w-full mb-3 p-3.5 bg-gradient-to-r from-rose-950/90 via-pink-950/80 to-slate-900 border border-rose-500/70 rounded-2xl shadow-xl flex items-start gap-3 animate-in fade-in duration-200">
+          <div className="w-9 h-9 rounded-xl bg-rose-900/80 border border-rose-500 flex items-center justify-center shrink-0 text-rose-300 shadow-inner mt-0.5">
+            <Heart className="w-5 h-5 fill-rose-500 text-rose-300 animate-pulse" />
+          </div>
+          <div className="flex-1 text-left text-xs">
+            <div className="flex items-center justify-between gap-1">
+              <span className="font-bold text-rose-200 flex items-center gap-1.5">
+                <span>Panah Asmara Cupid</span>
+              </span>
+              <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                Pasangan Kekasih
+              </span>
+            </div>
+            <p className="text-slate-200 mt-1 leading-snug text-[11px]">
+              {player.loverPartnerName ? (
+                <>
+                  Anda dipasangkan dengan <strong className="text-white underline font-bold">{player.loverPartnerName}</strong>. Takdir kalian terikat — jika salah satu gugur, pasangannya akan ikut gugur karena patah hati!
+                </>
+              ) : (
+                <>Anda terikat dalam takdir cinta sehidup semati oleh Cupid!</>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Privacy Notice */}
       <div className="w-full mb-1.5 flex items-center justify-between text-[11px] text-slate-500 px-1">
         <span>Privasi Layar</span>
@@ -107,15 +174,23 @@ export function PlayerCard({ player }: Props) {
 
               {/* Header Badges */}
               <div className="absolute top-3 inset-x-3 flex items-center justify-between">
-                <span
-                  className={`text-[11px] font-semibold tracking-wide uppercase px-2.5 py-1 rounded border backdrop-blur-md ${
-                    isWerewolf
-                      ? 'bg-rose-950/90 text-rose-300 border-rose-800'
-                      : 'bg-slate-900/90 text-slate-300 border-slate-700'
-                  }`}
-                >
-                  {isWerewolf ? 'Tim Werewolf' : 'Tim Warga'}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span
+                    className={`text-[11px] font-semibold tracking-wide uppercase px-2.5 py-1 rounded border backdrop-blur-md ${
+                      isWerewolf
+                        ? 'bg-rose-950/90 text-rose-300 border-rose-800'
+                        : 'bg-slate-900/90 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {isWerewolf ? 'Tim Werewolf' : 'Tim Warga'}
+                  </span>
+                  {player.isLover && (
+                    <span className="text-[10px] font-bold uppercase px-2 py-1 rounded border backdrop-blur-md bg-rose-950/90 text-rose-300 border-rose-600 flex items-center gap-1 shadow-sm">
+                      <Heart className="w-3 h-3 fill-rose-500 text-rose-300" />
+                      <span>Kekasih</span>
+                    </span>
+                  )}
+                </div>
 
                 <button
                   onClick={handleToggleReveal}

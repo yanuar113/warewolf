@@ -93,6 +93,7 @@ export interface NightActions {
   witchPoisonUsed?: boolean;
   witchHealTargetId?: string;
   witchPoisonTargetId?: string;
+  witchSkipped?: boolean;
   werewolfVotes: Record<string, string>; // werewolfPlayerId -> victimPlayerId
   werewolfTargetId?: string; // Consensus or majority victim
 }
