@@ -1,4 +1,3 @@
-
 name: Deploy Otomatis ke VPS
 
 on:
@@ -36,11 +35,10 @@ jobs:
 
             cd /www/wwwroot/warewolf
 
-            echo "=== Memeriksa kondisi repository ==="
+            echo "=== Memeriksa repository ==="
 
             if [ -n "$(git status --porcelain)" ]; then
-              echo "ERROR: Ada perubahan lokal di VPS."
-              echo "Simpan perubahan yang diperlukan ke GitHub terlebih dahulu."
+              echo "ERROR: Ada perubahan lokal yang belum disimpan."
               exit 1
             fi
 
@@ -51,35 +49,30 @@ jobs:
 
             echo "=== Memastikan port Docker ==="
 
-            docker compose config --format json | python3 -c '
-            import json, sys
-            cfg = json.load(sys.stdin)
-            ports = [
-                p
-                for service in cfg.get("services", {}).values()
-                for p in service.get("ports", [])
-            ]
-            valid = any(
-                str(p.get("published")) == "3010"
-                and str(p.get("target")) == "3000"
-                for p in ports
-            )
-            sys.exit(0 if valid else 1)
-            ' || {
-              echo "ERROR: Port 3010 ke 3000 belum dikonfigurasi."
+            if ! docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); p=[p for s in c.get("services",{}).values() for p in s.get("ports",[])]; sys.exit(0 if any(str(x.get("published"))=="3010" and str(x.get("target"))=="3000" for x in p) else 1)'; then
+              echo "ERROR: Mapping port 3010 ke 3000 tidak ditemukan."
+              echo "Periksa docker-compose.yml."
               exit 1
-            }
+            fi
 
             echo "=== Build Docker ==="
 
             docker compose build
 
-            echo "=== Menjalankan versi terbaru ==="
+            echo "=== Menjalankan container ==="
 
             docker compose up -d --remove-orphans
 
-            echo "=== Status container ==="
+            echo "=== Memeriksa status aplikasi ==="
 
             docker compose ps
 
-            echo "=== Deployment selesai ==="
+            if ! docker compose ps --status running --services | grep -qx "werewolf-app"; then
+              echo "ERROR: Container Werewolf tidak berjalan."
+              docker compose logs --tail=100
+              exit 1
+            fi
+
+            echo "=== Deployment berhasil ==="
+            echo "Port VPS: 3010"
+            echo "Port container: 3000"
