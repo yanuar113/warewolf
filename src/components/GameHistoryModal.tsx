@@ -1,3 +1,4 @@
+import { useRef, useEffect, useMemo } from 'react';
 import { X, Moon, Sun, Shield, Skull, Clock } from 'lucide-react';
 import { DeathRecord } from '../types/game';
 
@@ -14,16 +15,29 @@ export function GameHistoryModal({
   deathHistory,
   currentCycle,
 }: Props) {
-  if (!isOpen) return null;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const prevCountRef = useRef(deathHistory.length);
 
   // Group death records by cycle
-  const cycles = Array.from(
+  const cycles = useMemo(() => Array.from(
     new Set(deathHistory.map(d => d.cycle))
-  ).sort((a, b) => a - b);
+  ).sort((a, b) => a - b), [deathHistory]);
+
+  useEffect(() => {
+    if (isOpen && deathHistory.length > prevCountRef.current) {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 80);
+    }
+    prevCountRef.current = deathHistory.length;
+  }, [isOpen, deathHistory.length]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-100 space-y-5">
+      <div ref={containerRef} className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto scroll-smooth bg-slate-900 border border-slate-700 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-100 space-y-5">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 sm:pb-4">
@@ -152,6 +166,8 @@ export function GameHistoryModal({
                 </div>
               );
             })}
+            {/* Anchor for auto smooth scroll */}
+            <div ref={bottomRef} className="h-1" />
           </div>
         )}
 

@@ -3,7 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { GameRoom, Player, RoleId } from './src/types/game';
+import { GameRoom, Player, RoleId, Team } from './src/types/game';
 import { getRecommendedRoleConfig, distributeRolesToPlayers } from './src/utils/roles';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,6 +65,27 @@ function checkWinCondition(room: GameRoom): 'werewolf' | 'village' | null {
     return 'werewolf';
   }
   return null;
+}
+
+function recordGameCompletionLog(room: GameRoom, winner: Team, phase: 'NIGHT' | 'DAY') {
+  const winTitle = winner === 'village' ? 'Kemenangan Tim Warga' : winner === 'tanner' ? 'Kemenangan Mutlak Tanner' : 'Kemenangan Tim Werewolf';
+  const winDesc = winner === 'village'
+    ? 'Seluruh anggota Werewolf berhasil dieliminasi. Tim Warga berhasil mengamankan desa dan memenangkan permainan.'
+    : winner === 'tanner'
+    ? 'Tanner berhasil dieliminasi melalui musyawarah siang dan meraih kemenangan tunggal mutlak.'
+    : 'Jumlah anggota Werewolf menyamai atau melebihi jumlah warga aktif. Tim Werewolf memenangkan permainan.';
+
+  const alreadyLogged = room.logs.some(l => l.title.includes('Permainan Selesai'));
+  if (!alreadyLogged) {
+    room.logs.push({
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: room.cycle,
+      phase,
+      title: `Permainan Selesai (${winTitle})`,
+      description: winDesc,
+    });
+  }
 }
 
 // ---------------- ELIMINATION HELPER (LOVERS & APPRENTICE SEER CASCADE) ----------------
@@ -731,14 +752,16 @@ app.post('/api/rooms/:code/start-game', (req, res) => {
   room.apprenticeSeerPromoted = false;
   room.hunterRevengePlayerId = undefined;
 
-  room.logs.push({
-    id: createLogId(),
-    timestamp: Date.now(),
-    cycle: 1,
-    phase: 'NIGHT',
-    title: 'Permainan Dimulai',
-    description: 'Peran dibagikan secara acak. Fase Malam ke-1 dimulai.',
-  });
+  room.logs = [
+    {
+      id: createLogId(),
+      timestamp: Date.now(),
+      cycle: 1,
+      phase: 'NIGHT',
+      title: 'Permainan Dimulai',
+      description: 'Peran rahasia dibagikan secara acak kepada seluruh pemain. Fase Malam ke-1 dimulai.',
+    },
+  ];
 
   room.updatedAt = Date.now();
   res.json({ room: sanitizeRoomForPlayer(room, requesterId) });
@@ -1144,6 +1167,7 @@ app.post('/api/rooms/:code/resolve-night', (req, res) => {
     if (win) {
       room.stage = 'GAME_OVER';
       room.winner = win;
+      recordGameCompletionLog(room, win, 'NIGHT');
     } else {
       room.stage = 'DAY';
       room.dayStep = 'DAY_ANNOUNCE';
@@ -1200,6 +1224,7 @@ app.post('/api/rooms/:code/hunter-revenge', (req, res) => {
     if (win) {
       room.stage = 'GAME_OVER';
       room.winner = win;
+      recordGameCompletionLog(room, win, 'DAY');
     } else {
       room.stage = 'DAY';
       room.dayStep = 'DAY_ANNOUNCE';
@@ -1427,6 +1452,7 @@ app.post('/api/rooms/:code/resolve-day', (req, res) => {
   if (win) {
     room.stage = 'GAME_OVER';
     room.winner = win;
+    recordGameCompletionLog(room, win, 'DAY');
   } else {
     room.stage = 'NIGHT';
     room.cycle += 1;

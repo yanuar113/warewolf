@@ -135,8 +135,16 @@ export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) 
             onClick={handleToggleReveal}
             className="w-full h-full rounded-xl bg-slate-950 p-5 sm:p-6 flex flex-col items-center justify-between cursor-pointer border border-slate-800 hover:border-slate-700 active:bg-slate-900 transition-colors text-center select-none"
           >
-            <div className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
-              Kartu Peran Tertutup
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
+                Kartu Peran Tertutup
+              </span>
+              {player.isLover && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-950/90 text-rose-300 border border-rose-600 shadow-sm">
+                  <Heart className="w-3 h-3 fill-rose-500 text-rose-300 animate-pulse" />
+                  <span>Kekasih: {player.loverPartnerName || 'Pasangan'}</span>
+                </span>
+              )}
             </div>
 
             <div className="flex flex-col items-center gap-2.5 my-auto">
@@ -185,9 +193,9 @@ export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) 
                     {isWerewolf ? 'Tim Werewolf' : 'Tim Warga'}
                   </span>
                   {player.isLover && (
-                    <span className="text-[10px] font-bold uppercase px-2 py-1 rounded border backdrop-blur-md bg-rose-950/90 text-rose-300 border-rose-600 flex items-center gap-1 shadow-sm">
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase px-2 py-1 rounded border backdrop-blur-md bg-rose-950/90 text-rose-300 border-rose-600 flex items-center gap-1 shadow-sm">
                       <Heart className="w-3 h-3 fill-rose-500 text-rose-300" />
-                      <span>Kekasih</span>
+                      <span>Kekasih: {player.loverPartnerName || 'Pasangan'}</span>
                     </span>
                   )}
                 </div>

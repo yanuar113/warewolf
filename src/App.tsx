@@ -23,7 +23,6 @@ import { sounds } from './utils/audio';
 export default function App() {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
-  const [inspectedPlayerId, setInspectedPlayerId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'player' | 'moderator'>('player');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,7 +214,25 @@ export default function App() {
   const myPlayer = room?.players.find(p => p.id === myPlayerId);
   const currentPlayer = room?.players.find(p => p.id === currentPlayerId) || myPlayer || room?.players[0];
   const isModerator = !!(room?.moderatorId && (myPlayerId === room.moderatorId || currentPlayer?.id === room.moderatorId || myPlayer?.isModerator || currentPlayer?.isModerator));
-  const displayedPlayer = (inspectedPlayerId ? room?.players.find(p => p.id === inspectedPlayerId) : null) || currentPlayer;
+  const displayedPlayer = currentPlayer;
+
+  const handleSwitchPlayer = async (targetPlayerId: string) => {
+    if (!room || !targetPlayerId) return;
+    if (room.stage === 'GAME_OVER') return;
+    setCurrentPlayerId(targetPlayerId);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('werewolf_player_id', targetPlayerId);
+      localStorage.setItem('werewolf_player_id', targetPlayerId);
+    }
+    await fetchLatestRoom(room.code, targetPlayerId);
+  };
+
+  const handleTabChange = (tab: 'player' | 'moderator') => {
+    if (tab === 'moderator' && room?.moderatorId && currentPlayerId !== room.moderatorId) {
+      handleSwitchPlayer(room.moderatorId);
+    }
+    setActiveTab(tab);
+  };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,7 +471,7 @@ export default function App() {
       <TopBar
         roomCode={room?.code}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         isModerator={isModerator}
         onOpenRules={() => setIsRulesOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
@@ -673,20 +690,33 @@ export default function App() {
                 {activeTab === 'player' ? (
                   <div className="space-y-6 max-w-sm sm:max-w-md mx-auto w-full flex flex-col items-center justify-start">
                     {/* Floating quick-return banner for Moderator */}
-                    {isModerator && (
+                    {room.moderatorId && currentPlayerId !== room.moderatorId ? (
                       <div className="w-full p-3.5 bg-gradient-to-r from-indigo-950 via-slate-900 to-amber-950/60 border border-amber-500/60 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg">
                         <div className="flex items-center gap-2 text-slate-200">
                           <Crown className="w-4 h-4 text-amber-400 shrink-0" />
-                          <span>
-                            {inspectedPlayerId
-                              ? `Inspeksi: ${displayedPlayer?.name}`
-                              : 'Anda adalah Moderator (mode Kartu Peran)'}
-                          </span>
+                          <span>Mode Pemain: <strong className="text-amber-300">{currentPlayer?.name}</strong></span>
                         </div>
                         <button
                           type="button"
                           onClick={() => {
-                            setInspectedPlayerId('');
+                            handleSwitchPlayer(room.moderatorId);
+                            setActiveTab('moderator');
+                          }}
+                          className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                        >
+                          <Crown className="w-3.5 h-3.5 fill-slate-950" />
+                          <span>Kembali ke Moderator</span>
+                        </button>
+                      </div>
+                    ) : isModerator ? (
+                      <div className="w-full p-3.5 bg-gradient-to-r from-indigo-950 via-slate-900 to-amber-950/60 border border-amber-500/60 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg">
+                        <div className="flex items-center gap-2 text-slate-200">
+                          <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Anda adalah Moderator (mode Kartu Peran)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
                             setActiveTab('moderator');
                           }}
                           className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
@@ -695,14 +725,16 @@ export default function App() {
                           <span>Panel Moderator</span>
                         </button>
                       </div>
-                    )}
+                    ) : null}
 
                     {displayedPlayer && (
                       <PlayerCard
                         player={displayedPlayer}
-                        isModerator={isModerator && !inspectedPlayerId}
+                        isModerator={isModerator}
                         onSwitchToModerator={() => {
-                          setInspectedPlayerId('');
+                          if (room.moderatorId && currentPlayerId !== room.moderatorId) {
+                            handleSwitchPlayer(room.moderatorId);
+                          }
                           setActiveTab('moderator');
                         }}
                       />
@@ -724,37 +756,29 @@ export default function App() {
                       onOpenFullModal={() => setIsHistoryOpen(true)}
                     />
 
-                    {/* Perspective Selector - Allows Moderator to inspect cards & switch back easily */}
-                    <div className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
-                      <div className="flex items-center gap-1.5">
+                    {/* Akun Pemain Terhubung */}
+                    <div className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-slate-400">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <Lock className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Akun Pemain Terhubung:</span>
                       </div>
-                      {isModerator ? (
-                        <div className="flex items-center gap-2 flex-wrap justify-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setInspectedPlayerId('');
-                              setActiveTab('moderator');
-                            }}
-                            className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                          >
-                            <Crown className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Kembali ke Moderator</span>
-                          </button>
 
+                      {room.stage === 'GAME_OVER' ? (
+                        <div className="flex items-center gap-2">
+                          <strong className="text-slate-200 font-semibold px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg">
+                            {currentPlayer?.name}
+                          </strong>
+                          <span className="text-[10px] font-medium text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+                            Terkunci (Permainan Selesai)
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
                           <select
-                            value={inspectedPlayerId || currentPlayerId}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === room.moderatorId) {
-                                setInspectedPlayerId('');
-                              } else {
-                                setInspectedPlayerId(val);
-                              }
-                            }}
-                            className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none font-medium"
+                            value={currentPlayer?.id || currentPlayerId}
+                            onChange={(e) => handleSwitchPlayer(e.target.value)}
+                            className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-medium cursor-pointer max-w-[190px] sm:max-w-[220px] truncate"
+                            title="Ganti perspektif akun pemain"
                           >
                             {room.players.map(p => (
                               <option key={p.id} value={p.id}>
@@ -762,14 +786,30 @@ export default function App() {
                               </option>
                             ))}
                           </select>
-                          <span className="text-[10px] font-semibold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800">
-                            Pemandu
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-slate-100">
-                          <User className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{currentPlayer?.name}</span>
+
+                          {room.moderatorId && currentPlayerId !== room.moderatorId ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSwitchPlayer(room.moderatorId);
+                                setActiveTab('moderator');
+                              }}
+                              className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer shrink-0"
+                              title="Kembali ke akun Moderator"
+                            >
+                              <Crown className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Kembali ke Moderator</span>
+                            </button>
+                          ) : isModerator ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('moderator')}
+                              className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer shrink-0"
+                            >
+                              <Crown className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Panel Mod</span>
+                            </button>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -789,6 +829,8 @@ export default function App() {
                     onResetGame={handleResetGame}
                     onTriggerDawnTransition={handleManualDawnTransition}
                     onTriggerNightTransition={() => setShowNightTransition(true)}
+                    onSwitchPlayer={handleSwitchPlayer}
+                    onBackToPlayerCard={() => setActiveTab('player')}
                   />
                 )}
               </div>
@@ -820,6 +862,10 @@ export default function App() {
       <RoleDetailsModal
         isOpen={isRoleDetailsOpen}
         onClose={() => setIsRoleDetailsOpen(false)}
+        onOpenRules={() => {
+          setIsRoleDetailsOpen(false);
+          setIsRulesOpen(true);
+        }}
       />
 
       <GameHistoryModal
@@ -929,7 +975,7 @@ export default function App() {
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         onOpenRules={() => setIsRulesOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
         historyCount={room?.deathHistory?.length || 0}

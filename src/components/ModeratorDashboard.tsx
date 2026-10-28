@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Moon, Sun, Clock, Users, Skull, Shield, Eye, Bell, 
-  Play, Pause, RotateCcw, ChevronRight, UserCheck, Award, EyeOff, History, Sparkles 
+  Play, Pause, RotateCcw, ChevronRight, UserCheck, Award, EyeOff, History, Sparkles, Crown 
 } from 'lucide-react';
 import { GameRoom, NightStep, DayStep } from '../types/game';
 import { ROLE_DEFINITIONS } from '../utils/roles';
@@ -22,6 +22,8 @@ interface Props {
   onResetGame: () => Promise<void>;
   onTriggerDawnTransition?: () => void;
   onTriggerNightTransition?: () => void;
+  onSwitchPlayer?: (playerId: string) => Promise<void>;
+  onBackToPlayerCard?: () => void;
 }
 
 export function ModeratorDashboard({
@@ -38,23 +40,47 @@ export function ModeratorDashboard({
   onResetGame,
   onTriggerDawnTransition,
   onTriggerNightTransition,
+  onSwitchPlayer,
+  onBackToPlayerCard,
 }: Props) {
   const [selectedLynchTarget, setSelectedLynchTarget] = useState<string>('');
   const [showRoleCheatSheet, setShowRoleCheatSheet] = useState(true);
 
   if (currentPlayerId && room.moderatorId !== currentPlayerId) {
+    const modPlayer = room.players.find(p => p.id === room.moderatorId);
+    const viewingPlayer = room.players.find(p => p.id === currentPlayerId);
+
     return (
-      <div className="max-w-xl mx-auto my-12 p-8 bg-slate-900 border border-rose-900/60 rounded-3xl text-center space-y-4 shadow-2xl">
-        <div className="w-16 h-16 rounded-2xl bg-rose-950 border border-rose-800 text-rose-400 flex items-center justify-center mx-auto shadow-inner">
-          <Shield className="w-8 h-8" />
+      <div className="max-w-xl mx-auto my-12 p-8 bg-slate-900 border border-amber-900/60 rounded-3xl text-center space-y-4 shadow-2xl">
+        <div className="w-16 h-16 rounded-2xl bg-amber-950 border border-amber-800 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+          <Crown className="w-8 h-8" />
         </div>
         <div className="space-y-1">
-          <span className="text-xs font-mono uppercase tracking-widest text-rose-400 font-bold">Error 403 Forbidden</span>
-          <h3 className="text-xl font-bold text-white">Akses Panel Moderator Ditolak</h3>
+          <span className="text-xs font-mono uppercase tracking-widest text-amber-400 font-bold">Mode Perspektif Pemain</span>
+          <h3 className="text-xl font-bold text-white">Panel Khusus Moderator</h3>
         </div>
-        <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-          Anda tidak memiliki hak akses sebagai Moderator untuk room ini. Hanya Moderator ({room.players.find(p => p.id === room.moderatorId)?.name || 'terpilih'}) yang dapat mengakses dashboard panduan ini.
+        <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+          Akun Anda saat ini sedang dialihkan ke pemain <strong className="text-white">{viewingPlayer?.name || 'Lain'}</strong>. Anda dapat kembali ke akun Moderator kapan saja untuk memandu permainan.
         </p>
+        <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+          {onSwitchPlayer && (
+            <button
+              onClick={() => onSwitchPlayer(room.moderatorId)}
+              className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Crown className="w-4 h-4 fill-slate-950" />
+              <span>Kembali ke Moderator ({modPlayer?.name || 'Pemandu'})</span>
+            </button>
+          )}
+          {onBackToPlayerCard && (
+            <button
+              onClick={onBackToPlayerCard}
+              className="w-full sm:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-medium text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+            >
+              Lihat Kartu Peran
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -78,6 +104,7 @@ export function ModeratorDashboard({
   const eliminatedPlayers = playingPlayers.filter(p => p.status === 'eliminated');
   const aliveWerewolves = alivePlayers.filter(p => p.role === 'werewolf').length;
   const aliveVillagers = alivePlayers.filter(p => p.role !== 'werewolf').length;
+  const moderatorPlayer = room.players.find(p => p.id === room.moderatorId);
 
   const seerPlayer = room.players.find(p => p.role === 'seer' || (p.role === 'apprentice_seer' && room.apprenticeSeerPromoted));
   const seerTargetPlayer = room.players.find(p => p.id === room.nightActions.seerTargetId);
@@ -145,19 +172,9 @@ export function ModeratorDashboard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 w-full sm:w-auto">
-            <UserCheck className="w-4 h-4 text-slate-400 shrink-0" />
-            <select
-              value={room.moderatorId}
-              onChange={(e) => onSetModerator(e.target.value)}
-              className="w-full sm:w-auto bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none min-h-[38px]"
-            >
-              {room.players.map(p => (
-                <option key={p.id} value={p.id}>
-                  Moderator: {p.name}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 border border-amber-500/30 rounded-xl text-xs font-semibold text-amber-300 shadow-sm">
+            <UserCheck className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Moderator: {moderatorPlayer?.name || 'Pemandu'}</span>
           </div>
         </div>
       </div>

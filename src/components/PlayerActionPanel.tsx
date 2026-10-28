@@ -386,42 +386,8 @@ export function PlayerActionPanel({
     );
   }
 
-  // CUPID LOVERS STATUS BANNER (shown to lovers)
-  const renderLoversBanner = () => {
-    if (currentPlayer.isLover) {
-      const partnerName = currentPlayer.loverPartnerName || (
-        room.cupidLovers && room.cupidLovers.length === 2
-          ? room.players.find(p => p.id !== currentPlayer.id && room.cupidLovers?.includes(p.id))?.name
-          : undefined
-      );
-
-      return (
-        <div className="p-3.5 bg-gradient-to-r from-rose-950/90 via-pink-950/80 to-slate-900 border border-rose-500/70 rounded-2xl flex items-start gap-3 text-xs text-rose-200 shadow-xl mb-3 animate-in fade-in">
-          <div className="w-8 h-8 rounded-xl bg-rose-900/80 border border-rose-500 flex items-center justify-center shrink-0 text-rose-300 shadow-inner mt-0.5">
-            <Heart className="w-4.5 h-4.5 fill-rose-500 text-rose-300 animate-pulse" />
-          </div>
-          <div className="leading-snug flex-1">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="font-bold text-rose-100">Ikatan Asmara Cupid</span>
-              <span className="text-[9px] uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-full font-bold">
-                Pasangan Kekasih
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-200 mt-1">
-              {partnerName ? (
-                <>
-                  Pasangan takdir Anda adalah <strong className="text-white underline font-bold">{partnerName}</strong>. Takdir cinta kalian terikat — jika salah satu gugur, pasangannya akan ikut gugur karena patah hati!
-                </>
-              ) : (
-                <>Anda telah terikat dalam takdir asmara sehidup semati oleh panah Cupid!</>
-              )}
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+  // CUPID LOVERS STATUS BANNER (Consolidated into single banner at top of PlayerCard to avoid duplicate banners)
+  const renderLoversBanner = () => null;
 
   // 3. NIGHT ACTIONS
   if (room.stage === 'NIGHT') {

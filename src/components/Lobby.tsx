@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { 
-  Users, Crown, Play, Sparkles, Copy, Check, Plus, Minus, Info, Link, Share2, Trash2 
+  Users, Crown, Play, Sparkles, Copy, Check, Plus, Minus, Info, Link, Share2, Trash2,
+  CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { GameRoom, RoleId } from '../types/game';
 import { ROLE_DEFINITIONS, getRecommendedRoleConfig } from '../utils/roles';
@@ -72,17 +73,21 @@ export function Lobby({
     await onUpdateRoleConfig(recommended);
   };
 
+  const totalCardsConfigured = Object.values(room.roleConfig).reduce((a, b) => a + b, 0);
+  const isMatch = totalCardsConfigured === playerCount && playerCount > 0;
+  const isMaxReached = totalCardsConfigured >= playerCount && playerCount > 0;
+  const canStart = playerCount >= 4;
+
   const handleRoleCountChange = async (roleId: RoleId, delta: number) => {
+    if (delta > 0 && isMaxReached) {
+      return;
+    }
     const newConfig = { ...room.roleConfig };
     const current = newConfig[roleId] || 0;
     const updated = Math.max(0, current + delta);
     newConfig[roleId] = updated;
     await onUpdateRoleConfig(newConfig);
   };
-
-  const totalCardsConfigured = Object.values(room.roleConfig).reduce((a, b) => a + b, 0);
-  const isMatch = totalCardsConfigured === playerCount;
-  const canStart = playerCount >= 4;
 
   const handleStart = async () => {
     if (!canStart || starting) return;
@@ -271,15 +276,22 @@ export function Lobby({
               <h3 className="font-bold text-sm text-slate-100">
                 Konfigurasi Peran
               </h3>
-              <div className="text-xs text-slate-400 mt-0.5">
-                Jumlah Kartu: <strong className={isMatch ? 'text-emerald-400' : 'text-amber-400'}>{totalCardsConfigured}</strong> / {playerCount} Pemain
+              <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                <span>
+                  Jumlah Kartu: <strong className={isMatch ? 'text-emerald-400' : 'text-amber-400'}>{totalCardsConfigured}</strong> / {playerCount} Pemain
+                </span>
+                {isMatch && (
+                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800">
+                    Sesuai
+                  </span>
+                )}
               </div>
             </div>
 
             {isModerator ? (
               <button
                 onClick={handleApplyRecommended}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors self-start sm:self-auto"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors self-start sm:self-auto cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>Gunakan Rekomendasi Standar</span>
@@ -290,6 +302,52 @@ export function Lobby({
               </span>
             )}
           </div>
+
+          {/* Status Notifikasi Kuota Peran */}
+          {playerCount === 0 ? (
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-start gap-2.5 text-xs text-slate-400">
+              <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                Belum ada pemain yang bergabung. Tunggu pemain masuk ke room untuk menyesuaikan alokasi peran.
+              </p>
+            </div>
+          ) : isMatch ? (
+            <div className="p-3 sm:p-3.5 bg-emerald-950/40 border border-emerald-800/80 rounded-xl flex items-start gap-2.5 text-xs text-emerald-200 shadow-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-emerald-300">
+                  Alokasi Peran Sudah Sesuai ({totalCardsConfigured}/{playerCount})
+                </p>
+                <p className="text-[11px] sm:text-xs text-emerald-200/90 leading-relaxed">
+                  Jumlah peran sudah sesuai dengan total pemain. Penambahan peran dinonaktifkan kecuali Anda mengurangi peran lain terlebih dahulu.
+                </p>
+              </div>
+            </div>
+          ) : totalCardsConfigured > playerCount ? (
+            <div className="p-3 sm:p-3.5 bg-rose-950/40 border border-rose-800/80 rounded-xl flex items-start gap-2.5 text-xs text-rose-200 shadow-sm">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-rose-300">
+                  Jumlah Peran Berlebih ({totalCardsConfigured}/{playerCount})
+                </p>
+                <p className="text-[11px] sm:text-xs text-rose-200/90 leading-relaxed">
+                  Total kartu peran melebihi jumlah pemain. Silakan kurangi {totalCardsConfigured - playerCount} kartu peran agar permainan dapat dimulai.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 sm:p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex items-start gap-2.5 text-xs text-slate-400 shadow-sm">
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-slate-200">
+                  Alokasi Peran Belum Lengkap ({totalCardsConfigured}/{playerCount})
+                </p>
+                <p className="text-[11px] sm:text-xs text-slate-400 leading-relaxed">
+                  Masih diperlukan {playerCount - totalCardsConfigured} kartu peran lagi agar setiap pemain mendapatkan peran.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {(Object.keys(ROLE_DEFINITIONS) as RoleId[]).map(roleId => {
@@ -319,7 +377,7 @@ export function Lobby({
                         <button
                           onClick={() => handleRoleCountChange(roleId, -1)}
                           disabled={count === 0}
-                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 disabled:opacity-30 text-slate-200 flex items-center justify-center text-xs transition-all"
+                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed text-slate-200 flex items-center justify-center text-xs transition-all cursor-pointer"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
@@ -328,7 +386,13 @@ export function Lobby({
                         </span>
                         <button
                           onClick={() => handleRoleCountChange(roleId, 1)}
-                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-slate-200 flex items-center justify-center text-xs transition-all"
+                          disabled={isMaxReached}
+                          title={isMaxReached ? 'Jumlah peran sudah sesuai dengan jumlah pemain' : 'Tambah peran'}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all ${
+                            isMaxReached
+                              ? 'bg-slate-800/40 text-slate-600 cursor-not-allowed border border-slate-800'
+                              : 'bg-slate-800 hover:bg-slate-700 active:scale-90 text-slate-200 cursor-pointer'
+                          }`}
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
