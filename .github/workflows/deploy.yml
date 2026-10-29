@@ -1,105 +1,35 @@
-
-name: Deploy Otomatis ke VPS
+name: Continuous Deployment (VPS aaPanel)
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
-permissions:
-  contents: read
-
+# Mencegah eksekusi deployment ganda secara bersamaan
 concurrency:
-  group: werewolf-deployment
+  group: production-deployment
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy Werewolf
+    name: Deploy Otomatis ke VPS
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy melalui SSH
+      - name: Checkout Kode
+        uses: actions/checkout@v4
+
+      - name: Eksekusi Script Deploy di VPS via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
-          port: ${{ secrets.VPS_PORT }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 30s
-          command_timeout: 30m
-          script_stop: true
-
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop_on_error: true
           script: |
-            set -eu
-
-            cd /www/wwwroot/warewolf
-
-            echo "=== Memeriksa repository ==="
-
-            if [ -n "$(git status --porcelain)" ]; then
-              echo "ERROR: Ada perubahan lokal yang belum disimpan."
-              echo "Deployment dibatalkan agar perubahan lokal tidak tertimpa."
-              exit 1
-            fi
-
-            echo "=== Mengambil update GitHub ==="
-
-            git fetch origin main
-            git merge --ff-only origin/main
-
-            echo "=== Memeriksa konfigurasi port Docker ==="
-
-            if ! docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); p=[p for s in c.get("services",{}).values() for p in s.get("ports",[])]; sys.exit(0 if any(str(x.get("published"))=="3010" and str(x.get("target"))=="3000" for x in p) else 1)'; then
-              echo "ERROR: Mapping port 3010 ke 3000 tidak ditemukan."
-              echo "Periksa docker-compose.yml."
-              exit 1
-            fi
-
-            echo "=== Build Docker ==="
-
-            docker compose build
-
-            echo "=== Menjalankan container terbaru ==="
-
-            docker compose up -d --remove-orphans
-
-            echo "=== Memeriksa status container ==="
-
-            docker compose ps
-
-            if ! docker compose ps --status running --services | grep -qx "werewolf-app"; then
-              echo "ERROR: Container Werewolf tidak berjalan."
-              docker compose logs --tail=100
-              exit 1
-            fi
-
-            echo "=== HTTP Health Check ==="
-
-            HEALTH_OK=0
-
-            for attempt in $(seq 1 12); do
-              if curl -fsS http://127.0.0.1:3010/ -o /dev/null; then
-                echo "[OK] Aplikasi merespons HTTP."
-                HEALTH_OK=1
-                break
-              fi
-
-              echo "[INFO] Menunggu aplikasi siap ($attempt/12)..."
-              sleep 5
-            done
-
-            if [ "$HEALTH_OK" -ne 1 ]; then
-              echo "[ERROR] HTTP Health Check gagal."
-              echo "=== Status container ==="
-              docker compose ps
-              echo "=== Log aplikasi ==="
-              docker compose logs --tail=100
-              exit 1
-            fi
-
-            echo "=== Deployment berhasil ==="
-            echo "Port VPS: 3010"
-            echo "Port container: 3000"
-            echo "HTTP Health Check: OK"
+            export TARGET_DIR="${{ secrets.TARGET_DIR || '/www/wwwroot/warewolf' }}"
+            echo "[GITHUB ACTIONS] Memulai deployment di VPS pada direktori $TARGET_DIR..."
+            cd "$TARGET_DIR"
+            chmod +x deploy.sh
+            ./deploy.sh

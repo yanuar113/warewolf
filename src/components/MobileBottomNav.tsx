@@ -23,7 +23,7 @@ export function MobileBottomNav({
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 md:hidden safe-area-pb">
-      <div className="grid grid-cols-4 h-15 max-w-md mx-auto items-center px-2">
+      <div className={`grid ${isModerator ? 'grid-cols-4' : 'grid-cols-3'} h-15 max-w-md mx-auto items-center px-2`}>
         {/* Tab 1: Kartu Peran */}
         <button
           onClick={() => onTabChange('player')}
@@ -37,25 +37,25 @@ export function MobileBottomNav({
           <span className="text-[10px] tracking-tight">Kartu</span>
         </button>
 
-        {/* Tab 2: Panel Moderator */}
-        <button
-          onClick={() => onTabChange('moderator')}
-          className={`min-h-[48px] flex flex-col items-center justify-center gap-1 transition-colors relative ${
-            activeTab === 'moderator'
-              ? 'text-indigo-400 font-bold'
-              : isModerator
-              ? 'text-amber-400 hover:text-amber-300 font-semibold'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Crown className={`w-5 h-5 ${isModerator && activeTab !== 'moderator' ? 'text-amber-400 fill-amber-400/20' : ''}`} />
-          <span className="text-[10px] tracking-tight">Moderator</span>
-          {isModerator && activeTab !== 'moderator' && (
-            <span className="absolute top-1 right-2.5 px-1 py-0.2 bg-amber-500 text-slate-950 text-[8px] font-extrabold rounded-full animate-pulse leading-none">
-              MOD
-            </span>
-          )}
-        </button>
+        {/* Tab 2: Panel Moderator (Hanya untuk Moderator) */}
+        {isModerator && (
+          <button
+            onClick={() => onTabChange('moderator')}
+            className={`min-h-[48px] flex flex-col items-center justify-center gap-1 transition-colors relative ${
+              activeTab === 'moderator'
+                ? 'text-indigo-400 font-bold'
+                : 'text-amber-400 hover:text-amber-300 font-semibold'
+            }`}
+          >
+            <Crown className={`w-5 h-5 ${activeTab !== 'moderator' ? 'text-amber-400 fill-amber-400/20' : ''}`} />
+            <span className="text-[10px] tracking-tight">Moderator</span>
+            {activeTab !== 'moderator' && (
+              <span className="absolute top-1 right-2.5 px-1 py-0.2 bg-amber-500 text-slate-950 text-[8px] font-extrabold rounded-full animate-pulse leading-none">
+                MOD
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Tab 3: Riwayat */}
         <button

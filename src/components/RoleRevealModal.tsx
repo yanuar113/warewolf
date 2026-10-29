@@ -242,50 +242,7 @@ export function RoleRevealModal({
 
   const timelineContainerRef = useRef<HTMLDivElement | null>(null);
   const timelineBottomRef = useRef<HTMLDivElement | null>(null);
-  const prevTimelineCountRef = useRef<number>(filteredTimeline.length);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
-  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-
-  // Efek smooth scroll otomatis ke bawah saat muncul item peristiwa baru
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const currentCount = filteredTimeline.length;
-    const prevCount = prevTimelineCountRef.current;
-
-    if (currentCount > prevCount && currentCount > 0) {
-      const latestItem = filteredTimeline[currentCount - 1];
-      if (latestItem) {
-        setHighlightedItemId(latestItem.id);
-        const timer = setTimeout(() => {
-          setHighlightedItemId(null);
-        }, 3500);
-
-        // Gulir halus otomatis ke item peristiwa terbaru di bawah
-        const animFrame = requestAnimationFrame(() => {
-          setTimeout(() => {
-            if (timelineBottomRef.current) {
-              timelineBottomRef.current.scrollIntoView({
-                behavior: 'smooth',
-                block: 'end',
-              });
-            } else if (timelineContainerRef.current) {
-              timelineContainerRef.current.scrollTo({
-                top: timelineContainerRef.current.scrollHeight,
-                behavior: 'smooth',
-              });
-            }
-          }, 80);
-        });
-
-        return () => {
-          clearTimeout(timer);
-          cancelAnimationFrame(animFrame);
-        };
-      }
-    }
-    prevTimelineCountRef.current = currentCount;
-  }, [filteredTimeline, isOpen]);
 
   // Deteksi scroll pengguna di dalam daftar kronologi
   const handleTimelineScroll = () => {
@@ -552,15 +509,12 @@ export function RoleRevealModal({
                     const isDay = item.phase === 'DAY';
                     const isEliminated = item.isElimination;
                     const isSaved = item.isSaved;
-                    const isHighlighted = item.id === highlightedItemId;
 
                     return (
                       <div
                         key={item.id ? `${item.id}_${idx}` : `timeline_${idx}`}
                         className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 text-xs leading-relaxed relative ${
-                          isHighlighted
-                            ? 'ring-2 ring-amber-400 bg-gradient-to-r from-amber-950/70 via-slate-950 to-slate-950 border-amber-500 shadow-xl shadow-amber-500/20 scale-[1.01]'
-                            : isStart
+                          isStart
                             ? 'bg-gradient-to-r from-indigo-950/40 via-slate-950 to-slate-950 border-indigo-700/60 text-slate-200'
                             : isEnd
                             ? 'bg-gradient-to-r from-amber-950/40 via-slate-950 to-slate-950 border-amber-600/70 text-amber-100'
@@ -607,13 +561,6 @@ export function RoleRevealModal({
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-rose-950 text-rose-300 border border-rose-800">
                                 <Skull className="w-2.5 h-2.5" />
                                 <span>Gugur</span>
-                              </span>
-                            )}
-
-                            {isHighlighted && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-slate-950 animate-pulse shadow-sm">
-                                <Sparkles className="w-2.5 h-2.5 fill-slate-950" />
-                                <span>Peristiwa Baru</span>
                               </span>
                             )}
                           </div>

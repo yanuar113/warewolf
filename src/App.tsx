@@ -216,6 +216,12 @@ export default function App() {
   const isModerator = !!(room?.moderatorId && (myPlayerId === room.moderatorId || currentPlayer?.id === room.moderatorId || myPlayer?.isModerator || currentPlayer?.isModerator));
   const displayedPlayer = currentPlayer;
 
+  useEffect(() => {
+    if (!isModerator && activeTab === 'moderator') {
+      setActiveTab('player');
+    }
+  }, [isModerator, activeTab]);
+
   const handleSwitchPlayer = async (targetPlayerId: string) => {
     if (!room || !targetPlayerId) return;
     if (room.stage === 'GAME_OVER') return;
@@ -228,6 +234,10 @@ export default function App() {
   };
 
   const handleTabChange = (tab: 'player' | 'moderator') => {
+    if (!isModerator && tab === 'moderator') {
+      setActiveTab('player');
+      return;
+    }
     if (tab === 'moderator' && room?.moderatorId && currentPlayerId !== room.moderatorId) {
       handleSwitchPlayer(room.moderatorId);
     }
@@ -772,7 +782,7 @@ export default function App() {
                             Terkunci (Permainan Selesai)
                           </span>
                         </div>
-                      ) : (
+                      ) : isModerator ? (
                         <div className="flex items-center gap-2 flex-wrap justify-end">
                           <select
                             value={currentPlayer?.id || currentPlayerId}
@@ -787,7 +797,7 @@ export default function App() {
                             ))}
                           </select>
 
-                          {room.moderatorId && currentPlayerId !== room.moderatorId ? (
+                          {currentPlayerId !== room.moderatorId ? (
                             <button
                               type="button"
                               onClick={() => {
@@ -800,7 +810,7 @@ export default function App() {
                               <Crown className="w-3.5 h-3.5 text-amber-400" />
                               <span>Kembali ke Moderator</span>
                             </button>
-                          ) : isModerator ? (
+                          ) : (
                             <button
                               type="button"
                               onClick={() => setActiveTab('moderator')}
@@ -809,7 +819,12 @@ export default function App() {
                               <Crown className="w-3.5 h-3.5 text-amber-400" />
                               <span>Panel Mod</span>
                             </button>
-                          ) : null}
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-slate-200">
+                          <User className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{currentPlayer?.name}</span>
                         </div>
                       )}
                     </div>

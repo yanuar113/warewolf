@@ -17,21 +17,10 @@ export function GameHistoryModal({
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const prevCountRef = useRef(deathHistory.length);
-
   // Group death records by cycle
   const cycles = useMemo(() => Array.from(
     new Set(deathHistory.map(d => d.cycle))
   ).sort((a, b) => a - b), [deathHistory]);
-
-  useEffect(() => {
-    if (isOpen && deathHistory.length > prevCountRef.current) {
-      setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      }, 80);
-    }
-    prevCountRef.current = deathHistory.length;
-  }, [isOpen, deathHistory.length]);
 
   if (!isOpen) return null;
 

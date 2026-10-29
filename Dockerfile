@@ -6,8 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install -g npm@10.9.2
-RUN npm install --legacy-peer-deps --no-audit --no-fund
+RUN npm install
 
 # Copy project source code (includes public/, src/assets/, images)
 COPY . .

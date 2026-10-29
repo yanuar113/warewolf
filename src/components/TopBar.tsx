@@ -132,17 +132,19 @@ export function TopBar({
               >
                 Kartu Peran
               </button>
-              <button
-                onClick={() => onTabChange('moderator')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition-all whitespace-nowrap font-medium ${
-                  activeTab === 'moderator'
-                    ? 'bg-indigo-600 text-white shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Crown className="w-3.5 h-3.5" />
-                <span>Panel Moderator</span>
-              </button>
+              {isModerator && (
+                <button
+                  onClick={() => onTabChange('moderator')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition-all whitespace-nowrap font-medium ${
+                    activeTab === 'moderator'
+                      ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Panel Moderator</span>
+                </button>
+              )}
             </div>
 
             {onOpenHistory && (
