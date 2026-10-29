@@ -36,19 +36,8 @@ export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) 
           </p>
         </div>
 
-        {isModerator && onSwitchToModerator && (
-          <button
-            type="button"
-            onClick={onSwitchToModerator}
-            className="w-full min-h-[44px] py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:brightness-110 active:scale-95 text-slate-950 font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
-          >
-            <Crown className="w-4.5 h-4.5 text-slate-950 fill-slate-950" />
-            <span>Kembali ke Panel Moderator</span>
-          </button>
-        )}
-
         <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
-          Gunakan tombol di atas atau tab <strong>Panel Moderator</strong> untuk memandu fase permainan secara real-time.
+          Gunakan tombol <strong>Kembali ke Moderator</strong> di atas atau di bawah untuk kembali memandu fase permainan secara real-time.
         </div>
       </div>
     );
@@ -58,16 +47,6 @@ export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) 
     return (
       <div className="w-full max-w-sm mx-auto p-6 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-4">
         <p className="text-slate-400 text-sm">Menunggu pembagian peran dari moderator...</p>
-        {isModerator && onSwitchToModerator && (
-          <button
-            type="button"
-            onClick={onSwitchToModerator}
-            className="w-full min-h-[44px] py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Crown className="w-4 h-4 fill-slate-950" />
-            <span>Kembali ke Panel Moderator</span>
-          </button>
-        )}
       </div>
     );
   }
@@ -77,20 +56,6 @@ export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) 
 
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col items-center">
-      {/* Return to Moderator Quick Bar if currently inspecting another player */}
-      {isModerator && onSwitchToModerator && (
-        <button
-          type="button"
-          onClick={onSwitchToModerator}
-          className="w-full mb-3 py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded-xl text-amber-300 text-xs font-semibold flex items-center justify-between transition-colors shadow-sm cursor-pointer"
-        >
-          <span className="flex items-center gap-1.5">
-            <Crown className="w-3.5 h-3.5 text-amber-400" />
-            <span>Inspeksi: {player.name}</span>
-          </span>
-          <span className="text-[11px] underline font-bold text-amber-300">Kembali ke Moderator &rarr;</span>
-        </button>
-      )}
 
       {/* Cupid Lover Notice Banner */}
       {player.isLover && (

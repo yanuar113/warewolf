@@ -99,23 +99,6 @@ export function TopBar({
               </button>
             </div>
           )}
-
-          {roomCode && isModerator && (
-            <button
-              onClick={() => onTabChange(activeTab === 'moderator' ? 'player' : 'moderator')}
-              className={`md:hidden px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all shrink-0 shadow-sm ${
-                activeTab === 'moderator'
-                  ? 'bg-slate-800 text-slate-200 border border-slate-700'
-                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold border border-amber-400 ring-2 ring-amber-400/20'
-              }`}
-              title={activeTab === 'moderator' ? 'Buka Tampilan Kartu Peran' : 'Kembali ke Panel Moderator'}
-            >
-              <Crown className="w-3.5 h-3.5" />
-              <span className="text-[11px] whitespace-nowrap">
-                {activeTab === 'moderator' ? 'Kartu' : 'Ke Moderator'}
-              </span>
-            </button>
-          )}
         </div>
 
         {/* Center: Desktop Navigation Tabs (Hidden on small mobile screens, handled by MobileBottomNav) */}
