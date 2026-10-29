@@ -36,7 +36,7 @@ export function PlayerCard({ player, onSwitchToModerator, isModerator }: Props) 
           </p>
         </div>
 
-        {onSwitchToModerator && (
+        {isModerator && onSwitchToModerator && (
           <button
             type="button"
             onClick={onSwitchToModerator}

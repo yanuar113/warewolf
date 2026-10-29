@@ -22,6 +22,16 @@ import { sounds } from './utils/audio';
 
 export default function App() {
   const [room, setRoom] = useState<GameRoom | null>(null);
+  const [realPlayerId, setRealPlayerId] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return (
+      sessionStorage.getItem('werewolf_real_player_id') ||
+      localStorage.getItem('werewolf_real_player_id') ||
+      sessionStorage.getItem('werewolf_player_id') ||
+      localStorage.getItem('werewolf_player_id') ||
+      ''
+    );
+  });
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'player' | 'moderator'>('player');
   const [loading, setLoading] = useState(false);
@@ -68,7 +78,9 @@ export default function App() {
     }
 
     const savedCode = sessionStorage.getItem('werewolf_room_code') || localStorage.getItem('werewolf_room_code');
+    const savedRealId = sessionStorage.getItem('werewolf_real_player_id') || localStorage.getItem('werewolf_real_player_id');
     const savedPlayerId = sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id');
+    const candidateId = savedRealId || savedPlayerId;
 
     // If an invitation link is opened and differs from previous saved room,
     // prioritize the invited room code!
@@ -76,17 +88,32 @@ export default function App() {
 
     if (targetRoomCode) {
       setLoading(true);
-      api.getRoom(targetRoomCode, savedPlayerId || undefined)
+      api.getRoom(targetRoomCode, candidateId || undefined)
         .then(r => {
           // If the player is already recognized in this room (valid reconnection)
-          if (savedPlayerId && r.players.some(p => p.id === savedPlayerId)) {
+          if (candidateId && r.players.some(p => p.id === candidateId)) {
             setRoom(r);
-            setCurrentPlayerId(savedPlayerId);
+            setRealPlayerId(candidateId);
             sessionStorage.setItem('werewolf_room_code', targetRoomCode);
-            sessionStorage.setItem('werewolf_player_id', savedPlayerId);
-            const player = r.players.find(p => p.id === savedPlayerId);
-            if (player?.isModerator) {
-              setActiveTab('moderator');
+            sessionStorage.setItem('werewolf_real_player_id', candidateId);
+            localStorage.setItem('werewolf_real_player_id', candidateId);
+
+            const isMod = candidateId === r.moderatorId;
+            if (isMod) {
+              const currentInspectedId = savedPlayerId && r.players.some(p => p.id === savedPlayerId) ? savedPlayerId : candidateId;
+              setCurrentPlayerId(currentInspectedId);
+              sessionStorage.setItem('werewolf_player_id', currentInspectedId);
+              if (currentInspectedId === r.moderatorId) {
+                setActiveTab('moderator');
+              } else {
+                setActiveTab('player');
+              }
+            } else {
+              // Non-moderators are strictly locked to their own ID and player view
+              setCurrentPlayerId(candidateId);
+              sessionStorage.setItem('werewolf_player_id', candidateId);
+              localStorage.setItem('werewolf_player_id', candidateId);
+              setActiveTab('player');
             }
           } else {
             // Pemain belum terdaftar atau tidak memiliki ID valid di room ini.
@@ -96,8 +123,10 @@ export default function App() {
         .catch((err) => {
           sessionStorage.removeItem('werewolf_room_code');
           sessionStorage.removeItem('werewolf_player_id');
+          sessionStorage.removeItem('werewolf_real_player_id');
           localStorage.removeItem('werewolf_room_code');
           localStorage.removeItem('werewolf_player_id');
+          localStorage.removeItem('werewolf_real_player_id');
           const msg = err instanceof Error ? err.message : '';
           if (
             msg.includes('dibersihkan') || 
@@ -207,41 +236,61 @@ export default function App() {
     setShowPhaseTransition(true);
   };
 
-  const savedPlayerId = typeof window !== 'undefined' 
-    ? (sessionStorage.getItem('werewolf_player_id') || localStorage.getItem('werewolf_player_id')) 
-    : null;
-  const myPlayerId = currentPlayerId || savedPlayerId || '';
-  const myPlayer = room?.players.find(p => p.id === myPlayerId);
-  const currentPlayer = room?.players.find(p => p.id === currentPlayerId) || myPlayer || room?.players[0];
-  const isModerator = !!(room?.moderatorId && (myPlayerId === room.moderatorId || currentPlayer?.id === room.moderatorId || myPlayer?.isModerator || currentPlayer?.isModerator));
+  // Authentic Moderator check: strictly checks if this client device's assigned player ID matches room.moderatorId
+  const isRealModerator = Boolean(
+    room?.moderatorId && 
+    realPlayerId && 
+    realPlayerId === room.moderatorId
+  );
+
+  // For non-moderators, currentPlayerId is strictly locked to realPlayerId.
+  // Only the authentic moderator can inspect other players (currentPlayerId !== room.moderatorId).
+  const effectiveCurrentPlayerId = isRealModerator
+    ? (currentPlayerId || room?.moderatorId || realPlayerId || '')
+    : (realPlayerId || currentPlayerId || '');
+
+  const myPlayer = room?.players.find(p => p.id === (realPlayerId || effectiveCurrentPlayerId));
+  const currentPlayer = room?.players.find(p => p.id === effectiveCurrentPlayerId) || myPlayer || room?.players[0];
+  const isModerator = isRealModerator;
   const displayedPlayer = currentPlayer;
 
   useEffect(() => {
-    if (!isModerator && activeTab === 'moderator') {
+    if (!isRealModerator && activeTab === 'moderator') {
       setActiveTab('player');
     }
-  }, [isModerator, activeTab]);
+  }, [isRealModerator, activeTab]);
 
   const handleSwitchPlayer = async (targetPlayerId: string) => {
+    // STRICT SECURITY: Only the genuine Moderator can switch player perspectives!
+    if (!isRealModerator) return;
     if (!room || !targetPlayerId) return;
     if (room.stage === 'GAME_OVER') return;
+
     setCurrentPlayerId(targetPlayerId);
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('werewolf_player_id', targetPlayerId);
-      localStorage.setItem('werewolf_player_id', targetPlayerId);
     }
     await fetchLatestRoom(room.code, targetPlayerId);
   };
 
   const handleTabChange = (tab: 'player' | 'moderator') => {
-    if (!isModerator && tab === 'moderator') {
+    // Regular players are locked to 'player' tab only
+    if (!isRealModerator) {
       setActiveTab('player');
       return;
     }
-    if (tab === 'moderator' && room?.moderatorId && currentPlayerId !== room.moderatorId) {
-      handleSwitchPlayer(room.moderatorId);
+    if (tab === 'moderator') {
+      // If moderator was inspecting a player, return back to moderator ID
+      if (room?.moderatorId && effectiveCurrentPlayerId !== room.moderatorId) {
+        setCurrentPlayerId(room.moderatorId);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('werewolf_player_id', room.moderatorId);
+        }
+      }
+      setActiveTab('moderator');
+    } else {
+      setActiveTab('player');
     }
-    setActiveTab(tab);
   };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -256,15 +305,18 @@ export default function App() {
     try {
       const result = await api.createRoom(trimmedName);
       setRoom(result.room);
+      setRealPlayerId(result.playerId);
       setCurrentPlayerId(result.playerId);
       setActiveTab('moderator');
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('werewolf_player_name', trimmedName);
         sessionStorage.setItem('werewolf_room_code', result.room.code);
         sessionStorage.setItem('werewolf_player_id', result.playerId);
+        sessionStorage.setItem('werewolf_real_player_id', result.playerId);
         localStorage.setItem('werewolf_player_name', trimmedName);
         localStorage.setItem('werewolf_room_code', result.room.code);
         localStorage.setItem('werewolf_player_id', result.playerId);
+        localStorage.setItem('werewolf_real_player_id', result.playerId);
         const newUrl = `${window.location.pathname}?room=${result.room.code}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
       }
@@ -292,15 +344,18 @@ export default function App() {
     try {
       const result = await api.joinRoom(code, trimmedName, false);
       setRoom(result.room);
+      setRealPlayerId(result.playerId);
       setCurrentPlayerId(result.playerId);
       setActiveTab('player');
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('werewolf_player_name', trimmedName);
         sessionStorage.setItem('werewolf_room_code', result.room.code);
         sessionStorage.setItem('werewolf_player_id', result.playerId);
+        sessionStorage.setItem('werewolf_real_player_id', result.playerId);
         localStorage.setItem('werewolf_player_name', trimmedName);
         localStorage.setItem('werewolf_room_code', result.room.code);
         localStorage.setItem('werewolf_player_id', result.playerId);
+        localStorage.setItem('werewolf_real_player_id', result.playerId);
         const newUrl = `${window.location.pathname}?room=${result.room.code}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
       }
@@ -315,12 +370,15 @@ export default function App() {
     if (!room) return;
     setLoading(true);
     try {
-      await api.deleteRoom(room.code, currentPlayerId);
+      await api.deleteRoom(room.code, effectiveCurrentPlayerId);
       sessionStorage.removeItem('werewolf_room_code');
       sessionStorage.removeItem('werewolf_player_id');
+      sessionStorage.removeItem('werewolf_real_player_id');
       localStorage.removeItem('werewolf_room_code');
       localStorage.removeItem('werewolf_player_id');
+      localStorage.removeItem('werewolf_real_player_id');
       setRoom(null);
+      setRealPlayerId('');
       setCurrentPlayerId('');
       setInvitedCode('');
       setJoinCode('');
@@ -348,11 +406,17 @@ export default function App() {
       }
       const finalRoom = await api.getRoom(code);
       setRoom(finalRoom);
+      setRealPlayerId(res.playerId);
       setCurrentPlayerId(res.playerId);
       setActiveTab('moderator');
       localStorage.setItem('werewolf_player_name', 'Moderator');
       localStorage.setItem('werewolf_room_code', code);
       localStorage.setItem('werewolf_player_id', res.playerId);
+      localStorage.setItem('werewolf_real_player_id', res.playerId);
+      sessionStorage.setItem('werewolf_player_name', 'Moderator');
+      sessionStorage.setItem('werewolf_room_code', code);
+      sessionStorage.setItem('werewolf_player_id', res.playerId);
+      sessionStorage.setItem('werewolf_real_player_id', res.playerId);
       if (typeof window !== 'undefined') {
         const newUrl = `${window.location.pathname}?room=${code}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
@@ -464,9 +528,12 @@ export default function App() {
   const handleExitRoom = () => {
     sessionStorage.removeItem('werewolf_room_code');
     sessionStorage.removeItem('werewolf_player_id');
+    sessionStorage.removeItem('werewolf_real_player_id');
     localStorage.removeItem('werewolf_room_code');
     localStorage.removeItem('werewolf_player_id');
+    localStorage.removeItem('werewolf_real_player_id');
     setRoom(null);
+    setRealPlayerId('');
     setCurrentPlayerId('');
     setInvitedCode('');
     setJoinCode('');
@@ -687,7 +754,7 @@ export default function App() {
             {room.stage === 'LOBBY' ? (
               <Lobby
                 room={room}
-                currentPlayerId={currentPlayerId}
+                currentPlayerId={effectiveCurrentPlayerId}
                 onUpdateRoleConfig={handleUpdateRoleConfig}
                 onSetModerator={handleSetModerator}
                 onStartGame={handleStartGame}
@@ -697,14 +764,14 @@ export default function App() {
             ) : (
               <div className="space-y-6 flex-1 flex flex-col">
                 
-                {activeTab === 'player' ? (
+                {activeTab === 'player' || !isRealModerator ? (
                   <div className="space-y-6 max-w-sm sm:max-w-md mx-auto w-full flex flex-col items-center justify-start">
-                    {/* Floating quick-return banner for Moderator */}
-                    {room.moderatorId && currentPlayerId !== room.moderatorId ? (
+                    {/* Floating quick-return banner: ONLY for the genuine Moderator */}
+                    {isRealModerator && room.moderatorId && effectiveCurrentPlayerId !== room.moderatorId ? (
                       <div className="w-full p-3.5 bg-gradient-to-r from-indigo-950 via-slate-900 to-amber-950/60 border border-amber-500/60 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg">
                         <div className="flex items-center gap-2 text-slate-200">
                           <Crown className="w-4 h-4 text-amber-400 shrink-0" />
-                          <span>Mode Pemain: <strong className="text-amber-300">{currentPlayer?.name}</strong></span>
+                          <span>Mode Inspeksi Pemain: <strong className="text-amber-300">{currentPlayer?.name}</strong></span>
                         </div>
                         <button
                           type="button"
@@ -718,7 +785,7 @@ export default function App() {
                           <span>Kembali ke Moderator</span>
                         </button>
                       </div>
-                    ) : isModerator ? (
+                    ) : isRealModerator && activeTab === 'player' ? (
                       <div className="w-full p-3.5 bg-gradient-to-r from-indigo-950 via-slate-900 to-amber-950/60 border border-amber-500/60 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg">
                         <div className="flex items-center gap-2 text-slate-200">
                           <Crown className="w-4 h-4 text-amber-400 shrink-0" />
@@ -740,13 +807,13 @@ export default function App() {
                     {displayedPlayer && (
                       <PlayerCard
                         player={displayedPlayer}
-                        isModerator={isModerator}
-                        onSwitchToModerator={() => {
-                          if (room.moderatorId && currentPlayerId !== room.moderatorId) {
+                        isModerator={isRealModerator}
+                        onSwitchToModerator={isRealModerator ? () => {
+                          if (room.moderatorId && effectiveCurrentPlayerId !== room.moderatorId) {
                             handleSwitchPlayer(room.moderatorId);
                           }
                           setActiveTab('moderator');
-                        }}
+                        } : undefined}
                       />
                     )}
 
@@ -782,10 +849,10 @@ export default function App() {
                             Terkunci (Permainan Selesai)
                           </span>
                         </div>
-                      ) : isModerator ? (
+                      ) : isRealModerator ? (
                         <div className="flex items-center gap-2 flex-wrap justify-end">
                           <select
-                            value={currentPlayer?.id || currentPlayerId}
+                            value={currentPlayer?.id || effectiveCurrentPlayerId}
                             onChange={(e) => handleSwitchPlayer(e.target.value)}
                             className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-medium cursor-pointer max-w-[190px] sm:max-w-[220px] truncate"
                             title="Ganti perspektif akun pemain"
@@ -797,7 +864,7 @@ export default function App() {
                             ))}
                           </select>
 
-                          {currentPlayerId !== room.moderatorId ? (
+                          {effectiveCurrentPlayerId !== room.moderatorId ? (
                             <button
                               type="button"
                               onClick={() => {
@@ -824,7 +891,7 @@ export default function App() {
                       ) : (
                         <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-slate-200">
                           <User className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{currentPlayer?.name}</span>
+                          <span>{myPlayer?.name || currentPlayer?.name}</span>
                         </div>
                       )}
                     </div>
@@ -832,7 +899,7 @@ export default function App() {
                 ) : (
                   <ModeratorDashboard
                     room={room}
-                    currentPlayerId={currentPlayerId}
+                    currentPlayerId={effectiveCurrentPlayerId}
                     onNightStep={handleNightStep}
                     onResolveNight={handleResolveNight}
                     onDayStep={handleDayStep}

@@ -13,6 +13,11 @@ export function getStoredPlayerId(explicitPlayerId?: string): string {
     return explicitPlayerId.trim();
   }
   if (typeof window !== 'undefined') {
+    const fromRealSession = sessionStorage.getItem('werewolf_real_player_id');
+    if (fromRealSession && fromRealSession.trim()) return fromRealSession.trim();
+    const fromRealLocal = localStorage.getItem('werewolf_real_player_id');
+    if (fromRealLocal && fromRealLocal.trim()) return fromRealLocal.trim();
+
     const fromSession = sessionStorage.getItem('werewolf_player_id');
     if (fromSession && fromSession.trim()) return fromSession.trim();
     const fromLocal = localStorage.getItem('werewolf_player_id');
@@ -76,8 +81,10 @@ export const api = {
     );
     if (data.playerId && typeof window !== 'undefined') {
       sessionStorage.setItem('werewolf_player_id', data.playerId);
+      sessionStorage.setItem('werewolf_real_player_id', data.playerId);
       sessionStorage.setItem('werewolf_room_code', data.room.code);
       localStorage.setItem('werewolf_player_id', data.playerId);
+      localStorage.setItem('werewolf_real_player_id', data.playerId);
       localStorage.setItem('werewolf_room_code', data.room.code);
     }
     this.broadcastUpdate(data.room.code);
@@ -111,8 +118,10 @@ export const api = {
     );
     if (data.playerId && typeof window !== 'undefined') {
       sessionStorage.setItem('werewolf_player_id', data.playerId);
+      sessionStorage.setItem('werewolf_real_player_id', data.playerId);
       sessionStorage.setItem('werewolf_room_code', data.room.code);
       localStorage.setItem('werewolf_player_id', data.playerId);
+      localStorage.setItem('werewolf_real_player_id', data.playerId);
       localStorage.setItem('werewolf_room_code', data.room.code);
     }
     this.broadcastUpdate(code);
