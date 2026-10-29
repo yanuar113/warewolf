@@ -14,6 +14,7 @@ jobs:
   deploy:
     name: Deploy Otomatis ke VPS
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Kode
@@ -25,11 +26,15 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script_stop_on_error: true
+          port: ${{ secrets.VPS_PORT }}
+          script_stop: true
           script: |
-            export TARGET_DIR="${{ secrets.TARGET_DIR || '/www/wwwroot/warewolf' }}"
+            export TARGET_DIR="/www/wwwroot/warewolf"
             echo "[GITHUB ACTIONS] Memulai deployment di VPS pada direktori $TARGET_DIR..."
+            if [ ! -d "$TARGET_DIR" ]; then
+              echo "[ERROR] Direktori $TARGET_DIR tidak ditemukan di VPS!"
+              exit 1
+            fi
             cd "$TARGET_DIR"
             chmod +x deploy.sh
             ./deploy.sh

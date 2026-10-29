@@ -1,6 +1,9 @@
 services:
   werewolf-app:
-    build: .
+    image: werewolf-app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: werewolf-companion
     restart: unless-stopped
     ports:

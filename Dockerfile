@@ -1,12 +1,12 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy dependency files
-COPY package*.json ./
+# Copy dependency definitions and lockfile for deterministic caching
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install
+# Install exact dependencies using npm ci from lockfile
+RUN npm ci
 
 # Copy project source code (includes public/, src/assets/, images)
 COPY . .
