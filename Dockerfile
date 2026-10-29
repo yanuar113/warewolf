@@ -1,28 +1,25 @@
-FROM node:22-alpine
+
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# Copy dependency definitions and lockfile for deterministic caching
+# Install dependencies dari lockfile
 COPY package.json package-lock.json ./
+RUN npm ci --include=optional
 
-# Install exact dependencies using npm ci from lockfile
-RUN npm ci
-
-# Copy project source code (includes public/, src/assets/, images)
+# Copy source code, termasuk aset gambar
 COPY . .
 
-# Ensure persistent upload & public asset directories exist
+# Pastikan direktori tersedia
 RUN mkdir -p uploads public/assets/images
 
-# Build frontend production bundle (Vite outputs to dist/)
+# Build aplikasi
 RUN npm run build
 
-# Set environment
+# Konfigurasi aplikasi
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Port yang dibuka
 EXPOSE 3000
 
-# Start server fullstack (Express + Vite static assets)
 CMD ["npm", "start"]
